@@ -1,27 +1,23 @@
 import { cn } from "@/lib/utils";
 import { AlertCircle, Calendar } from "lucide-react";
 
-interface Renewal {
+export interface Renewal {
+  id: string;
   name: string;
-  date: string;
+  date: string; // ISO string or pre-formatted
   amount: number;
   daysUntil: number;
   logo?: string;
   color?: string;
+  currency: string;
 }
-
-const renewals: Renewal[] = [
-  { name: "Netflix", date: "Dec 15", amount: 15.99, daysUntil: 2, color: "#E50914" },
-  { name: "Spotify", date: "Dec 18", amount: 9.99, daysUntil: 5, color: "#1DB954" },
-  { name: "GitHub", date: "Dec 22", amount: 4.00, daysUntil: 9, color: "#6e5494" },
-  { name: "Figma", date: "Dec 28", amount: 12.00, daysUntil: 15, color: "#A259FF" },
-];
 
 interface UpcomingRenewalsProps {
   className?: string;
+  renewals: Renewal[];
 }
 
-export function UpcomingRenewals({ className }: UpcomingRenewalsProps) {
+export function UpcomingRenewals({ className, renewals }: UpcomingRenewalsProps) {
   return (
     <div
       className={cn(
@@ -39,9 +35,9 @@ export function UpcomingRenewals({ className }: UpcomingRenewalsProps) {
         <Calendar className="h-5 w-5 text-muted-foreground" />
       </div>
       <div className="space-y-4">
-        {renewals.map((renewal, index) => (
+        {renewals.map((renewal) => (
           <div
-            key={renewal.name}
+            key={renewal.id}
             className={cn(
               "flex items-center gap-4 p-3 rounded-lg transition-colors hover:bg-secondary/50",
               renewal.daysUntil <= 3 && "bg-warning/5 hover:bg-warning/10"
@@ -66,13 +62,13 @@ export function UpcomingRenewals({ className }: UpcomingRenewalsProps) {
               <p className="text-sm text-muted-foreground">{renewal.date}</p>
             </div>
             <div className="text-right">
-              <p className="font-semibold">${renewal.amount.toFixed(2)}</p>
+              <p className="font-semibold">${(renewal.amount || 0).toFixed(2)}</p>
               <p className="text-xs text-muted-foreground">
                 {renewal.daysUntil === 0
                   ? "Today"
                   : renewal.daysUntil === 1
-                  ? "Tomorrow"
-                  : `${renewal.daysUntil} days`}
+                    ? "Tomorrow"
+                    : `${renewal.daysUntil} days`}
               </p>
             </div>
           </div>

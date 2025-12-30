@@ -139,7 +139,8 @@ export const getUserSubscriptions = async (req, res, next) => {
   try {
     console.log("\n📋 Fetching user subscriptions...");
     console.log("User ID from params:", req.params.id);
-    console.log("User ID from token:", req.user._id);
+    console.log("User ID from token:", req.user._id.toString());
+    console.log("IDs match:", req.user._id.toString() === req.params.id);
 
     // Check authorization
     if (req.user._id.toString() !== req.params.id) {
@@ -799,6 +800,12 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
       _id: { $in: subscriptionIds },
     });
 
+    if (subscriptions.length !== subscriptionIds.length) {
+      const error = new Error("Some subscriptions not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
     const unauthorized = subscriptions.some(
       (s) => s.user.toString() !== req.user._id.toString()
     );
@@ -836,6 +843,61 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
     });
   } catch (error) {
     console.error("❌ Error in bulkDeleteSubscriptions:", error);
+    next(error);
+  }
+};
+
+// ============================================================================
+// SEED SUBSCRIPTIONS
+// ============================================================================
+export const seedSubscriptions = async (req, res, next) => {
+  try {
+    console.log("\n🌱 Seeding subscriptions for user:", req.user._id);
+
+    const subscriptionData = [
+      { name: "Netflix", price: 15.99, currency: "USD", frequency: "Monthly", category: "Entertainment" },
+      { name: "Spotify", price: 9.99, currency: "USD", frequency: "Monthly", category: "Entertainment" },
+      { name: "GitHub Pro", price: 4.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Figma", price: 12.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Notion", price: 10.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Adobe Creative Cloud", price: 54.99, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Amazon Prime", price: 139.00, currency: "USD", frequency: "Yearly", category: "Shopping" },
+      { name: "Uber One", price: 9.99, currency: "USD", frequency: "Monthly", category: "Travel" },
+      { name: "HelloFresh", price: 60.00, currency: "USD", frequency: "Weekly", category: "Food" },
+      { name: "Gym Membership", price: 45.00, currency: "USD", frequency: "Monthly", category: "Others" },
+    ];
+
+    const subscriptions = await Promise.all(
+      subscriptionData.map(async (sub) => {
+        const startDate = new Date(); // Start today
+        // Randomize start date slightly to last month or so
+        startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 30));
+
+        return {
+          ...sub,
+          startDate,
+          status: "Active",
+          user: req.user._id,
+          workflowStatus: "idle", // Don't trigger workflows for seeds to avoid spamming
+        };
+      })
+    );
+
+    const createdSubscriptions = [];
+    for (const sub of subscriptions) {
+      const createdSub = await Subscription.create(sub);
+      createdSubscriptions.push(createdSub);
+    }
+
+    console.log(`✅ Seeded ${createdSubscriptions.length} subscriptions`);
+
+    res.status(201).json({
+      success: true,
+      message: "Subscriptions seeded successfully",
+      data: createdSubscriptions,
+    });
+  } catch (error) {
+    console.error("❌ Error in seedSubscriptions:", error);
     next(error);
   }
 };

@@ -1,5 +1,8 @@
 import { cn } from "@/lib/utils";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { AppDispatch } from "@/store";
+import { logoutUser } from "@/features/auth/authSlice";
 import {
   LayoutDashboard,
   CreditCard,
@@ -24,6 +27,13 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
+    navigate("/auth");
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-64 flex-col border-r border-border bg-sidebar">
@@ -71,7 +81,7 @@ export function Sidebar() {
         </div>
         <div className="flex items-center justify-between">
           <ThemeToggle />
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={handleLogout}>
             <LogOut className="h-5 w-5" />
           </Button>
         </div>
