@@ -6,7 +6,7 @@ interface StatCardProps {
   value: string | number;
   change?: {
     value: number;
-    type: "increase" | "decrease";
+    type: "increase" | "decrease" | "neutral";
   };
   icon: LucideIcon;
   description?: string;
@@ -40,10 +40,12 @@ export function StatCard({
               <span
                 className={cn(
                   "font-medium",
-                  change.type === "increase" ? "text-success" : "text-destructive"
+                  change.type === "increase" ? "text-success" :
+                    change.type === "decrease" ? "text-destructive" :
+                      "text-muted-foreground"
                 )}
               >
-                {change.type === "increase" ? "+" : "-"}
+                {change.type === "increase" ? "+" : change.type === "decrease" ? "-" : ""}
                 {Math.abs(change.value)}%
               </span>
               <span className="text-muted-foreground">from last month</span>

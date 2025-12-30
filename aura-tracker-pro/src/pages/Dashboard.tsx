@@ -84,28 +84,28 @@ export default function Dashboard() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <StatCard
             title="Total Monthly"
-            value={`$${stats?.spending.totalMonthly.toFixed(2) || "0.00"}`}
+            value={`$${(stats?.spending?.totalMonthly || 0).toFixed(2)}`}
             change={{ value: 0, type: "increase" }} // Needs historical comparison
             icon={CreditCard}
             delay={100}
           />
           <StatCard
             title="Active Subscriptions"
-            value={stats?.overview.active.toString() || "0"}
+            value={(stats?.overview?.active || 0).toString()}
             change={{ value: 0, type: "increase" }}
             icon={TrendingUp}
             delay={200}
           />
           <StatCard
             title="This Month's Renewals"
-            value={stats?.upcomingRenewals.length.toString() || "0"}
+            value={(stats?.upcomingRenewals?.length || 0).toString()}
             description="Upcoming in 30 days"
             icon={Calendar}
             delay={300}
           />
           <StatCard
             title="Potential Savings"
-            value={`$${stats?.spending.totalYearly.toFixed(2) || "0.00"}`}
+            value={`$${(stats?.spending?.totalYearly || 0).toFixed(2)}`}
             description="Total Yearly Cost" // Changed meaning slightly for now
             icon={AlertTriangle}
             delay={400}
