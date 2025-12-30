@@ -11,6 +11,19 @@ export const createSubscription = async (req, res, next) => {
     console.log("\n🆕 Creating new subscription...");
     console.log("Request body:", JSON.stringify(req.body, null, 2));
     console.log("User ID:", req.user._id);
+    console.log("User Plan:", req.user.plan);
+
+    // Enforce limits for free users
+    if (req.user.plan === "free") {
+      const subscriptionCount = await Subscription.countDocuments({ user: req.user._id });
+      if (subscriptionCount >= 10) {
+        return res.status(403).json({
+          success: false,
+          message: "Free users are limited to 10 subscriptions. Please upgrade to Pro for unlimited tracking.",
+          code: "LIMIT_REACHED"
+        });
+      }
+    }
 
     const subscription = await Subscription.create({
       ...req.body,
@@ -151,7 +164,8 @@ export const getUserSubscriptions = async (req, res, next) => {
       throw error;
     }
 
-    const { status, category, search } = req.query;
+    const { status, category, search, page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build filter
     const filter = { user: req.params.id };
@@ -161,41 +175,25 @@ export const getUserSubscriptions = async (req, res, next) => {
       filter.name = { $regex: search, $options: "i" };
     }
 
-    const subscriptions = await Subscription.find(filter).sort({
-      createdAt: -1,
-    });
+    const subscriptions = await Subscription.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Subscription.countDocuments(filter);
 
     console.log(`✅ Found ${subscriptions.length} subscriptions for user`);
-
-    // Calculate statistics
-    const stats = {
-      total: subscriptions.length,
-      active: subscriptions.filter((s) => s.status.toLowerCase() === "active")
-        .length,
-      inactive: subscriptions.filter((s) => s.status.toLowerCase() !== "active")
-        .length,
-      totalMonthlySpend: subscriptions
-        .filter((s) => s.status.toLowerCase() === "active")
-        .reduce((sum, s) => {
-          if (s.frequency.toLowerCase() === "monthly") return sum + s.price;
-          if (s.frequency.toLowerCase() === "yearly") return sum + s.price / 12;
-          return sum;
-        }, 0),
-      totalYearlySpend: subscriptions
-        .filter((s) => s.status.toLowerCase() === "active")
-        .reduce((sum, s) => {
-          if (s.frequency.toLowerCase() === "yearly") return sum + s.price;
-          if (s.frequency.toLowerCase() === "monthly")
-            return sum + s.price * 12;
-          return sum;
-        }, 0),
-    };
 
     res.status(200).json({
       success: true,
       message: "Subscriptions retrieved successfully",
       data: subscriptions,
-      stats,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+        itemsPerPage: parseInt(limit),
+      },
     });
   } catch (error) {
     console.error("❌ Error in getUserSubscriptions:", error);

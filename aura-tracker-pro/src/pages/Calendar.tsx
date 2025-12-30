@@ -9,7 +9,8 @@ export default function CalendarPage() {
     const { data: subscriptions, isLoading } = useSubscriptions();
     const [date, setDate] = useState<Date | undefined>(new Date());
 
-    const parsedSubscriptions = (subscriptions || []).map(sub => ({
+    const allSubscriptions = subscriptions?.pages.flatMap((page) => page.data) || [];
+    const parsedSubscriptions = allSubscriptions.map(sub => ({
         ...sub,
         parsedDate: new Date(sub.renewalDate)
     }));

@@ -45,7 +45,8 @@ export default function Dashboard() {
     { month: "Dec", amount: stats?.spending.totalMonthly || 389 },
   ];
 
-  const recentSubscriptions = subscriptions?.slice(0, 5) || [];
+  const allSubscriptions = subscriptions?.pages.flatMap((page) => page.data) || [];
+  const recentSubscriptions = allSubscriptions.slice(0, 5);
 
   // Transform renewals for display
   const upcomingRenewals = stats?.upcomingRenewals.map((r) => ({
@@ -72,7 +73,7 @@ export default function Dashboard() {
             title="Dashboard"
             subtitle="Track and manage all your subscriptions"
           />
-          {!isLoadingSubs && (!subscriptions || subscriptions.length === 0) && (
+          {!isLoadingSubs && allSubscriptions.length === 0 && (
             <Button onClick={() => seed()} disabled={isSeeding} variant="outline" className="gap-2">
               {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
               Seed Data

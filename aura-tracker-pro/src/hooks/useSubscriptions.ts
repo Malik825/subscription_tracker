@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -13,6 +13,7 @@ export interface Subscription {
     status: "Active" | "Cancelled" | "Expired" | "Suspended";
     startDate: string;
     renewalDate: string;
+    website?: string;
     workflowStatus?: "idle" | "running" | "completed" | "failed";
 }
 
@@ -47,15 +48,18 @@ export interface SubscriptionStats {
 export const useSubscriptions = () => {
     const { user } = useAuth();
 
-    return useQuery({
+    return useInfiniteQuery({
         queryKey: ["subscriptions", user?._id],
-        queryFn: async () => {
-            if (!user?._id) return [];
-            console.log("Fetching subscriptions for user:", user._id);
-            const response = await api.get(`/subscriptions/user/${user._id}`);
-            console.log("Subscription response:", response.data);
-            return response.data.data as Subscription[];
+        queryFn: async ({ pageParam = 1 }) => {
+            if (!user?._id) return { data: [], pagination: { totalPages: 0, currentPage: 1 } };
+            const response = await api.get(`/subscriptions/user/${user._id}?page=${pageParam}&limit=10`);
+            return response.data;
         },
+        getNextPageParam: (lastPage) => {
+            const { currentPage, totalPages } = lastPage.pagination;
+            return currentPage < totalPages ? currentPage + 1 : undefined;
+        },
+        initialPageParam: 1,
         enabled: !!user?._id,
     });
 };
@@ -87,5 +91,53 @@ export const useSubscriptionStats = () => {
             return response.data.data as SubscriptionStats;
         },
         enabled: !!user?._id,
+    });
+};
+
+export const useCreateSubscription = () => {
+    const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    return useMutation({
+        mutationFn: async (data: any) => {
+            const response = await api.post("/subscriptions", data);
+            return response.data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["subscriptions", user?._id] });
+            queryClient.invalidateQueries({ queryKey: ["subscription-stats", user?._id] });
+        },
+    });
+};
+
+export const useUpdateSubscription = () => {
+    const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    return useMutation({
+        mutationFn: async ({ id, data }: { id: string; data: any }) => {
+            const response = await api.patch(`/subscriptions/${id}`, data);
+            return response.data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["subscriptions", user?._id] });
+            queryClient.invalidateQueries({ queryKey: ["subscription-stats", user?._id] });
+        },
+    });
+};
+
+export const useDeleteSubscription = () => {
+    const queryClient = useQueryClient();
+    const { user } = useAuth();
+
+    return useMutation({
+        mutationFn: async (id: string) => {
+            const response = await api.delete(`/subscriptions/${id}`);
+            return response.data.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["subscriptions", user?._id] });
+            queryClient.invalidateQueries({ queryKey: ["subscription-stats", user?._id] });
+        },
     });
 };

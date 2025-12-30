@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Search, Filter, Grid, List, MoreHorizontal, Edit, Trash2, ExternalLink } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Search, Filter, Grid, List, MoreHorizontal, Edit, Trash2, ExternalLink, Calendar as CalendarIcon, Loader2, Download, Info, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Select,
@@ -20,32 +21,173 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { useSubscriptions, useSubscriptionStats } from "@/hooks/useSubscriptions";
+import { useSubscriptions, useSubscriptionStats, useCreateSubscription, useUpdateSubscription, useDeleteSubscription, Subscription } from "@/hooks/useSubscriptions";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { subscriptionSchema, SubscriptionInput } from "@/schemas/subscriptionSchema";
+import { useToast } from "@/hooks/use-toast";
+import { SubscriptionTable } from "@/components/SubscriptionTable";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Subscriptions() {
-  const { data: subscriptions, isLoading } = useSubscriptions();
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading
+  } = useSubscriptions();
   const { data: stats } = useSubscriptionStats();
 
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const { user } = useAuth();
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  const filteredSubscriptions = (subscriptions || []).filter((sub) => {
+  const { toast } = useToast();
+  const createSubscription = useCreateSubscription();
+  const updateSubscription = useUpdateSubscription();
+  const deleteSubscription = useDeleteSubscription();
+
+  const form = useForm<SubscriptionInput>({
+    resolver: zodResolver(subscriptionSchema),
+    defaultValues: {
+      name: "",
+      price: 0,
+      currency: "USD",
+      frequency: "Monthly",
+      category: "Subscription",
+      startDate: new Date(),
+      status: "Active",
+      website: "",
+    },
+  });
+
+  const onSubmit = async (data: SubscriptionInput) => {
+    try {
+      if (editingSubscription) {
+        await updateSubscription.mutateAsync({ id: editingSubscription._id, data });
+        toast({ title: "Success", description: "Subscription updated successfully" });
+      } else {
+        await createSubscription.mutateAsync(data);
+        toast({ title: "Success", description: "Subscription added successfully" });
+      }
+      setIsAddDialogOpen(false);
+      setEditingSubscription(null);
+      form.reset();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: editingSubscription ? "Failed to update subscription" : "Failed to add subscription",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = (sub: Subscription) => {
+    setEditingSubscription(sub);
+    form.reset({
+      name: sub.name,
+      price: sub.price,
+      currency: sub.currency as any,
+      frequency: sub.frequency as any,
+      category: sub.category as any,
+      startDate: new Date(sub.startDate),
+      status: sub.status as any,
+      website: sub.website || "",
+    });
+    setIsAddDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("Are you sure you want to delete this subscription?")) {
+      try {
+        await deleteSubscription.mutateAsync(id);
+        toast({ title: "Success", description: "Subscription deleted successfully" });
+      } catch (err) {
+        toast({ title: "Error", description: "Failed to delete subscription", variant: "destructive" });
+      }
+    }
+  };
+
+  const allSubscriptions = data?.pages.flatMap((page) => page.data) || [];
+
+  const filteredSubscriptions = allSubscriptions.filter((sub) => {
     const matchesSearch = sub.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "All" || sub.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const categories = ["All", "Entertainment", "Food", "Travel", "Shopping", "Subscription", "Others"];
+
+  const handleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === filteredSubscriptions.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredSubscriptions.map((sub) => sub._id));
+    }
+  };
+
+  const handleExport = () => {
+    if (user?.plan === "free") {
+      setIsUpgradeModalOpen(true);
+    } else {
+      toast({
+        title: "Export Started",
+        description: `Exporting ${selectedIds.length || filteredSubscriptions.length} subscriptions to CSV...`,
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -60,68 +202,270 @@ export default function Subscriptions() {
       <div className="p-8">
         <div className="space-y-6 animate-fade-in">
           {/* Header */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold gradient-text">Subscriptions</h1>
-              <p className="text-muted-foreground mt-1">
-                Manage all your subscriptions in one place
-              </p>
-            </div>
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="glow" className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Add Subscription
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-foreground">Market history</h1>
+                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2 h-10 px-4 border-border/50 hover:bg-muted/50 transition-colors"
+                  onClick={handleExport}
+                >
+                  <Download className="h-4 w-4 text-muted-foreground" />
+                  <span>Export</span>
+                  {user?.plan === "free" && <Badge variant="secondary" className="ml-1 px-1 h-4 text-[10px] bg-primary/10 text-primary border-none uppercase font-bold">Pro</Badge>}
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="glass border-border">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-10 w-10 p-0 border-border/50">
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="glass border-border">
+                    <DropdownMenuItem onClick={() => setViewMode("grid")}>
+                      <Grid className="h-4 w-4 mr-2" /> Grid View
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setViewMode("list")}>
+                      <List className="h-4 w-4 mr-2" /> Table View
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="glow"
+                  className="gap-2 h-10 px-5 shadow-lg shadow-primary/20"
+                  onClick={() => {
+                    if (user?.plan === "free" && allSubscriptions.length >= 10) {
+                      setIsUpgradeModalOpen(true);
+                    } else {
+                      setEditingSubscription(null);
+                      form.reset({
+                        name: "",
+                        price: 0,
+                        currency: "USD",
+                        frequency: "Monthly",
+                        category: "Subscription",
+                        startDate: new Date(),
+                        status: "Active",
+                        website: "",
+                      });
+                      setIsAddDialogOpen(true);
+                    }
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="font-semibold">Add Subscription</span>
+                </Button>
+              </div>
+            </div>
+
+            <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+              setIsAddDialogOpen(open);
+              if (!open) setEditingSubscription(null);
+            }}>
+              <DialogContent className="glass border-border sm:max-w-[425px]">
                 <DialogHeader>
-                  <DialogTitle>Add New Subscription</DialogTitle>
+                  <DialogTitle>{editingSubscription ? "Edit Subscription" : "Add New Subscription"}</DialogTitle>
                   <DialogDescription>
-                    Track a new subscription by filling out the details below.
+                    {editingSubscription
+                      ? "Keep your subscription details up to date."
+                      : "Track a new subscription by filling out the details below."}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Service Name</Label>
-                    <Input id="name" placeholder="Netflix, Spotify, etc." />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Price</Label>
-                      <Input id="price" type="number" placeholder="9.99" />
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Service Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Netflix, Spotify, etc." {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="website"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Website URL (Optional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="https://netflix.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Price</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.01" placeholder="9.99" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="frequency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Billing Cycle</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select cycle" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="glass border-border">
+                                <SelectItem value="Monthly">Monthly</SelectItem>
+                                <SelectItem value="Yearly">Yearly</SelectItem>
+                                <SelectItem value="Weekly">Weekly</SelectItem>
+                                <SelectItem value="Daily">Daily</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cycle">Billing Cycle</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select cycle" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                          <SelectItem value="yearly">Yearly</SelectItem>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="currency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Currency</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="USD" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="glass border-border">
+                                {['USD', 'EUR', 'GBP', 'CEDI', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'HKD', 'IDR', 'INR', 'KRW', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PKR', 'PLN', 'RUB', 'SGD', 'THB', 'TRY', 'ZAR'].map((curr) => (
+                                  <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="status"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Status</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Active" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="glass border-border">
+                                <SelectItem value="Active">Active</SelectItem>
+                                <SelectItem value="Suspended">Suspended</SelectItem>
+                                <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                <SelectItem value="Expired">Expired</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.slice(1).map((cat) => (
-                          <SelectItem key={cat} value={cat.toLowerCase()}>{cat}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button className="w-full" variant="glow" onClick={() => setIsAddDialogOpen(false)}>
-                    Add Subscription
-                  </Button>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="category"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Category</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="glass border-border">
+                                {categories.slice(1).map((cat) => (
+                                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="startDate"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-col">
+                            <FormLabel className="mb-1">Start Date</FormLabel>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                      "w-full pl-3 text-left font-normal h-10 bg-transparent border-input",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    {field.value ? (
+                                      format(new Date(field.value), "PPP")
+                                    ) : (
+                                      <span>Pick a date</span>
+                                    )}
+                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0 glass border-border" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={new Date(field.value)}
+                                  onSelect={field.onChange}
+                                  disabled={(date) =>
+                                    date > new Date() || date < new Date("1900-01-01")
+                                  }
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <DialogFooter className="pt-4">
+                      <Button type="submit" className="w-full" variant="glow" disabled={createSubscription.isPending || updateSubscription.isPending}>
+                        {(createSubscription.isPending || updateSubscription.isPending) ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {editingSubscription ? "Updating..." : "Adding..."}
+                          </>
+                        ) : (
+                          editingSubscription ? "Update Subscription" : "Add Subscription"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
               </DialogContent>
             </Dialog>
           </div>
@@ -143,123 +487,126 @@ export default function Subscriptions() {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
             <div className="flex flex-1 gap-3">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search subscriptions..."
-                  className="pl-10"
+                  className="pl-10 h-10 bg-transparent border-input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-[160px]">
+                <SelectTrigger className="w-[160px] h-10 bg-transparent">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="glass border-border">
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === "grid" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("grid")}
-              >
-                <Grid className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "secondary" : "ghost"}
-                size="icon"
-                onClick={() => setViewMode("list")}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
 
-          {/* Subscriptions Grid/List */}
-          <div className={cn(
-            viewMode === "grid"
-              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-              : "space-y-3"
-          )}>
-            {filteredSubscriptions.map((sub, index) => (
-              <div
-                key={sub._id}
-                className={cn(
-                  "glass rounded-xl p-4 transition-all duration-300 hover:glow-border opacity-0 animate-fade-in",
-                  viewMode === "list" && "flex items-center justify-between"
-                )}
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div className={cn("flex items-center gap-4", viewMode === "list" && "flex-1")}>
-                  <div
-                    className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold"
-                    style={{ color: getColorForCategory(sub.category) }}
-                  >
-                    {sub.name.charAt(0)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{sub.name}</h3>
-                      <Badge
-                        variant={sub.status.toLowerCase() === "active" ? "default" : "secondary"}
-                        className="text-xs"
-                      >
-                        {sub.status}
-                      </Badge>
+          {/* Subscriptions Grid/Table */}
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredSubscriptions.map((sub, index) => (
+                <div
+                  key={sub._id}
+                  className="glass rounded-xl p-4 transition-all duration-300 hover:glow-border opacity-0 animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold"
+                      style={{ color: getColorForCategory(sub.category) }}
+                    >
+                      {sub.name.charAt(0)}
                     </div>
-                    <p className="text-sm text-muted-foreground">{sub.category}</p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold">{sub.name}</h3>
+                        <Badge
+                          variant={sub.status.toLowerCase() === "active" ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {sub.status}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{sub.category}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                    <div>
+                      <p className="text-lg font-bold text-primary">${sub.price}</p>
+                      <p className="text-xs text-muted-foreground">/{sub.frequency}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm">Next billing</p>
+                      <p className="text-sm text-muted-foreground">{sub.renewalDate ? format(new Date(sub.renewalDate), "MMM d, yyyy") : "N/A"}</p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="glass border-border">
+                        <DropdownMenuItem onClick={() => handleEdit(sub)}>
+                          <Edit className="h-4 w-4 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          const url = sub.website || `https://google.com/search?q=${sub.name}+subscription+manage`;
+                          window.open(url.startsWith('http') ? url : `https://${url}`, '_blank');
+                        }}>
+                          <ExternalLink className="h-4 w-4 mr-2" /> Visit Site
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(sub._id)}>
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            <SubscriptionTable
+              subscriptions={filteredSubscriptions}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              onSelectAll={handleSelectAll}
+            />
+          )}
 
-                <div className={cn(
-                  "flex items-center justify-between",
-                  viewMode === "grid" ? "mt-4 pt-4 border-t border-border" : "gap-6"
-                )}>
-                  <div>
-                    <p className="text-lg font-bold text-primary">${sub.price}</p>
-                    <p className="text-xs text-muted-foreground">/{sub.frequency}</p>
-                  </div>
-                  <div className={cn(viewMode === "list" && "text-right")}>
-                    <p className="text-sm">Next billing</p>
-                    <p className="text-sm text-muted-foreground">{sub.renewalDate ? format(new Date(sub.renewalDate), "MMM d, yyyy") : "N/A"}</p>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Edit className="h-4 w-4 mr-2" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <ExternalLink className="h-4 w-4 mr-2" /> Visit Site
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        <Trash2 className="h-4 w-4 mr-2" /> Cancel
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {filteredSubscriptions.length === 0 && (
+          {filteredSubscriptions.length === 0 && !isLoading && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No subscriptions found</p>
             </div>
           )}
+
+          {/* Infinite Scroll Trigger */}
+          <div ref={loadMoreRef} className="py-8 flex justify-center">
+            {isFetchingNextPage && (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            )}
+            {!hasNextPage && filteredSubscriptions.length > 0 && (
+              <p className="text-sm text-muted-foreground">No more subscriptions to load</p>
+            )}
+          </div>
+
+          <UpgradeModal
+            isOpen={isUpgradeModalOpen}
+            onClose={() => setIsUpgradeModalOpen(false)}
+          />
         </div>
       </div>
     </div>

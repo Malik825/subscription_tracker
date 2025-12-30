@@ -152,59 +152,77 @@ export default function Index() {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 px-6">
+      <section className="py-24 px-6 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 blur-[120px] rounded-full -z-10" />
         <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+          <div className="text-center mb-16 animate-fade-in">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
               Simple, transparent{" "}
               <span className="gradient-text">pricing</span>
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Choose the plan that fits your needs. All plans include a 14-day
-              free trial.
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Choose the plan that fits your needs. Scale your subscription management without hidden fees.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {pricingPlans.map((plan, index) => (
               <div
                 key={plan.name}
                 className={cn(
-                  "stat-card glass rounded-2xl p-8 opacity-0 animate-fade-in-up relative",
-                  plan.popular && "glow-border"
+                  "relative group transition-all duration-500",
+                  "stat-card glass-premium rounded-[2.5rem] p-10 opacity-0 animate-fade-in-up",
+                  plan.popular ? "scale-105 z-10 glow-border-primary ring-1 ring-primary/20 bg-background/40" : "hover:scale-[1.02] bg-background/20"
                 )}
-                style={{ animationDelay: `${index * 100}ms` }}
+                style={{ animationDelay: `${index * 150}ms` }}
               >
                 {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-primary text-primary-foreground text-xs font-semibold rounded-full">
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-1.5 bg-primary text-primary-foreground text-sm font-bold rounded-full shadow-lg shadow-primary/20 uppercase tracking-wider">
                     Most Popular
                   </div>
                 )}
-                <div className="text-center mb-6">
-                  <h3 className="text-xl font-semibold mb-2">{plan.name}</h3>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold">{plan.price}</span>
+
+                <div className="mb-10 text-center">
+                  <span className="text-sm font-bold uppercase tracking-[0.2em] text-primary mb-4 block">
+                    {plan.name}
+                  </span>
+                  <div className="flex items-baseline justify-center gap-1.5 mb-4">
+                    <span className="text-5xl font-extrabold tracking-tight">{plan.price}</span>
                     {plan.period && (
-                      <span className="text-muted-foreground">{plan.period}</span>
+                      <span className="text-muted-foreground font-medium">{plan.period}</span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-2">
+                  <p className="text-muted-foreground font-medium leading-relaxed">
                     {plan.description}
                   </p>
                 </div>
-                <ul className="space-y-3 mb-8">
+
+                <div className="h-px w-full bg-gradient-to-r from-transparent via-border to-transparent mb-10" />
+
+                <ul className="space-y-5 mb-12">
                   {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3">
-                      <Check className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-sm">{feature}</span>
+                    <li key={feature} className="flex items-start gap-4 group/item">
+                      <div className="mt-1 rounded-full bg-primary/20 p-1 group-hover/item:bg-primary/30 transition-colors">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-[15px] font-medium text-foreground/80 group-hover/item:text-foreground transition-colors leading-tight">
+                        {feature}
+                      </span>
                     </li>
                   ))}
                 </ul>
-                <Button
-                  variant={plan.popular ? "glow" : "outline"}
-                  className="w-full"
-                >
-                  {plan.cta}
-                </Button>
+
+                <Link to="/auth" className="w-full">
+                  <Button
+                    variant={plan.popular ? "glow" : "outline"}
+                    size="xl"
+                    className={cn(
+                      "w-full rounded-2xl h-14 text-base font-bold transition-all duration-300",
+                      !plan.popular && "hover:bg-primary/10 hover:border-primary/30"
+                    )}
+                  >
+                    {plan.cta}
+                  </Button>
+                </Link>
               </div>
             ))}
           </div>
