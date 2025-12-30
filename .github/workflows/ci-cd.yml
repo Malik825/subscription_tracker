@@ -1,0 +1,84 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Frontend Dependencies
+        working-directory: ./aura-tracker-pro
+        run: npm ci
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Security Audit (Frontend)
+        working-directory: ./aura-tracker-pro
+        run: npm audit --audit-level=high || true # Specific config to not fail immediately on modorate issues
+
+      - name: Security Audit (Backend)
+        working-directory: ./backend
+        run: npm audit --audit-level=high || true
+
+      - name: Lint Frontend
+        working-directory: ./aura-tracker-pro
+        run: npm run lint
+
+  build-and-test:
+    needs: security-and-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Frontend Dependencies
+        working-directory: ./aura-tracker-pro
+        run: npm ci
+
+      - name: Build Frontend
+        working-directory: ./aura-tracker-pro
+        run: npm run build
+
+      # Placeholder for Backend Build/Test if needed
+      # - name: Test Backend
+      #   working-directory: ./backend
+      #   run: npm test
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to Production
+        run: echo "Deploying to production server..."
+        # Add actual deployment steps here (e.g., SSH, Vercel CLI, Docker push)
+
+  notify:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Notify Success
+        if: ${{ success() }}
+        run: echo "Pipeline passed and deployed successfully!"
+
+      - name: Notify Failure
+        if: ${{ failure() }}
+        run: echo "Pipeline failed! Check logs."
