@@ -1,35 +1,40 @@
 import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-
-// Mock data for subscriptions
-const subscriptions = [
-    { id: 1, name: "Netflix", price: 15.99, date: new Date(2024, 1, 15), category: "Entertainment" }, // Feb 15
-    { id: 2, name: "Spotify", price: 9.99, date: new Date(2024, 1, 10), category: "Music" }, // Feb 10
-    { id: 3, name: "Adobe CC", price: 54.99, date: new Date(2024, 1, 20), category: "Productivity" }, // Feb 20
-    { id: 4, name: "GitHub Pro", price: 4.00, date: new Date(2024, 1, 18), category: "Development" }, // Feb 18
-    { id: 5, name: "Figma", price: 12.00, date: new Date(2024, 1, 25), category: "Design" }, // Feb 25
-];
+import { ChevronLeft, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
 
 export default function CalendarPage() {
+    const { data: subscriptions, isLoading } = useSubscriptions();
     const [date, setDate] = useState<Date | undefined>(new Date());
+
+    const parsedSubscriptions = (subscriptions || []).map(sub => ({
+        ...sub,
+        parsedDate: new Date(sub.renewalDate)
+    }));
 
     // Filter subscriptions for filter selected date or upcoming
     const selectedDateSubs = date
-        ? subscriptions.filter(sub =>
-            sub.date.getDate() === date.getDate() &&
-            sub.date.getMonth() === date.getMonth() &&
-            sub.date.getFullYear() === date.getFullYear()
+        ? parsedSubscriptions.filter(sub =>
+            sub.parsedDate.getDate() === date.getDate() &&
+            sub.parsedDate.getMonth() === date.getMonth() &&
+            sub.parsedDate.getFullYear() === date.getFullYear()
         )
         : [];
 
-    const upcomingSubs = subscriptions
-        .filter(sub => sub.date >= new Date())
-        .sort((a, b) => a.date.getTime() - b.date.getTime())
+    const upcomingSubs = parsedSubscriptions
+        .filter(sub => sub.parsedDate >= new Date())
+        .sort((a, b) => a.parsedDate.getTime() - b.parsedDate.getTime())
         .slice(0, 3);
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen aura-bg">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen aura-bg">
@@ -53,7 +58,9 @@ export default function CalendarPage() {
                         {/* Main Calendar Section */}
                         <div className="lg:col-span-2 glass p-6 rounded-2xl">
                             <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-lg font-semibold">February 2024</h2>
+                                <h2 className="text-lg font-semibold">
+                                    {date ? date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : "Select Month"}
+                                </h2>
                                 <div className="flex gap-2">
                                     <Button variant="ghost" size="icon">
                                         <ChevronLeft className="h-4 w-4" />
@@ -81,17 +88,17 @@ export default function CalendarPage() {
                                     }}
                                     components={{
                                         DayContent: (props) => {
-                                            const daySubs = subscriptions.filter(sub =>
-                                                sub.date.getDate() === props.date.getDate() &&
-                                                sub.date.getMonth() === props.date.getMonth() &&
-                                                sub.date.getFullYear() === props.date.getFullYear()
+                                            const daySubs = parsedSubscriptions.filter(sub =>
+                                                sub.parsedDate.getDate() === props.date.getDate() &&
+                                                sub.parsedDate.getMonth() === props.date.getMonth() &&
+                                                sub.parsedDate.getFullYear() === props.date.getFullYear()
                                             );
                                             return (
                                                 <div className="w-full h-full flex flex-col items-start gap-1">
                                                     <span className="text-sm font-medium">{props.date.getDate()}</span>
                                                     <div className="flex flex-col gap-1 w-full scale-90 origin-top-left">
                                                         {daySubs.map(sub => (
-                                                            <div key={sub.id} className="text-[10px] w-full bg-primary/20 text-primary-foreground px-1 py-0.5 rounded truncate">
+                                                            <div key={sub._id} className="text-[10px] w-full bg-primary/20 text-primary-foreground px-1 py-0.5 rounded truncate">
                                                                 ${sub.price} - {sub.name}
                                                             </div>
                                                         ))}
@@ -114,7 +121,7 @@ export default function CalendarPage() {
                                 <div className="space-y-4">
                                     {selectedDateSubs.length > 0 ? (
                                         selectedDateSubs.map(sub => (
-                                            <div key={sub.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
+                                            <div key={sub._id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/5">
                                                 <div>
                                                     <p className="font-semibold">{sub.name}</p>
                                                     <p className="text-xs text-muted-foreground">{sub.category}</p>
@@ -141,11 +148,11 @@ export default function CalendarPage() {
                                 </div>
                                 <div className="space-y-3">
                                     {upcomingSubs.map(sub => (
-                                        <div key={sub.id} className="flex items-center gap-3">
+                                        <div key={sub._id} className="flex items-center gap-3">
                                             <div className="w-2 h-2 rounded-full bg-primary"></div>
                                             <div className="flex-1">
                                                 <p className="text-sm font-medium">{sub.name}</p>
-                                                <p className="text-xs text-muted-foreground">{sub.date.toLocaleDateString()}</p>
+                                                <p className="text-xs text-muted-foreground">{sub.parsedDate.toLocaleDateString()}</p>
                                             </div>
                                             <span className="text-sm font-bold">${sub.price}</span>
                                         </div>

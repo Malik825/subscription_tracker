@@ -4,76 +4,98 @@ import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
 import { JWT_EXPIRES_IN, JWT_SECRET } from "../config/env.js";
 
-export const registerUser = async (req, res, next) => { 
+import crypto from 'crypto';
+import { sendVerificationEmail } from '../utils/sendEmail.js';
+
+export const registerUser = async (req, res, next) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
         // Implement registration logic here
         const { username, email, password } = req.body;
         const existingUser = await mongoose.model('User').findOne({ email });
-        if (existingUser) { 
+        if (existingUser) {
             const error = new Error('User already exists with this email');
             error.statusCode = 409;
             throw error;
 
         }
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
         // Hash password before saviameg to database
         const salt = await bcrypt.genSalt(10);
         const hashePassword = await bcrypt.hash(password, salt);
         const newUser = await User.create([
-            { username, email, password: hashePassword }
+            {
+                username,
+                email,
+                password: hashePassword,
+                verificationToken,
+                verificationTokenExpiresAt,
+                isVerified: false
+            }
         ], { session });
 
-    const token = jwt.sign(
-    { userId: newUser[0]._id }, 
-    JWT_SECRET,                 
-    { expiresIn: JWT_EXPIRES_IN }
-);
+        await sendVerificationEmail(email, verificationToken);
 
         await session.commitTransaction();
         session.endSession();
-      res.status(201).json({ 
-    success: true, 
-    message: 'User created successfully', 
-    data: {
-        token, 
-        user: newUser[0] 
-    }
-});
+        res.status(201).json({
+            success: true,
+            message: 'User created successfully. Please check your email to verify your account.',
+            data: {
+                user: newUser[0]
+            }
+        });
 
-   } catch (error) {
+    } catch (error) {
         await session.abortTransaction();
         session.endSession();
-    next(error);
-   }
+        next(error);
+    }
 
 }
 export const loginUser = async (req, res, next) => {
-    
+
     try {
         const { email, password } = req.body;
         const user = await User.findOne({ email });
-        if (!user) { 
+        if (!user) {
             const error = new Error('Invalid email or password');
             error.statusCode = 404;
             throw error;
         }
         const isPasswordValid = await bcrypt.compare(password, user.password);
-        if(!isPasswordValid) {
+        if (!isPasswordValid) {
             const error = new Error('Invalid email or password');
             error.statusCode = 401;
             throw error;
         }
+
+        if (!user.isVerified) {
+            const error = new Error('Please verify your email to login');
+            error.statusCode = 403; // Forbidden
+            throw error;
+        }
+
         const token = jwt.sign(
-            { userId: user._id }, 
-            JWT_SECRET,                 
+            { userId: user._id },
+            JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 day
+        });
+
         res.status(200).json({
-            success: true, 
-            message: 'User logged in successfully', 
+            success: true,
+            message: 'User logged in successfully',
             data: {
-                token, 
                 user
             }
         });
@@ -82,13 +104,62 @@ export const loginUser = async (req, res, next) => {
         next(error);
     }
 }
- 
+
+
+export const verifyEmail = async (req, res, next) => {
+    try {
+        const { token } = req.body;
+
+        const user = await User.findOne({
+            verificationToken: token,
+            verificationTokenExpiresAt: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            const error = new Error('Invalid or expired verification token');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        user.isVerified = true;
+        user.verificationToken = undefined;
+        user.verificationTokenExpiresAt = undefined;
+        await user.save();
+
+        // Optional: Send a welcome email here
+
+        res.status(200).json({
+            success: true,
+            message: 'Email verified successfully',
+            data: {
+                user
+            }
+        });
+
+    } catch (error) {
+        next(error);
+    }
+}
 
 export const logoutUser = async (req, res, next) => {
     try {
-        
+        res.clearCookie('token');
+        res.status(200).json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
-        
+        next(error);
     }
 }
- 
+
+export const getCurrentUser = async (req, res, next) => {
+    try {
+        // req.user is already populated by authMiddleware
+        res.status(200).json({
+            success: true,
+            data: {
+                user: req.user
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+}

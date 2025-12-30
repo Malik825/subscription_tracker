@@ -11,24 +11,10 @@ import { cn } from "@/lib/utils";
 
 interface SpendingChartProps {
   className?: string;
+  data: { month: string; amount: number }[];
 }
 
-const data = [
-  { month: "Jan", amount: 245 },
-  { month: "Feb", amount: 268 },
-  { month: "Mar", amount: 284 },
-  { month: "Apr", amount: 276 },
-  { month: "May", amount: 298 },
-  { month: "Jun", amount: 312 },
-  { month: "Jul", amount: 325 },
-  { month: "Aug", amount: 318 },
-  { month: "Sep", amount: 342 },
-  { month: "Oct", amount: 358 },
-  { month: "Nov", amount: 365 },
-  { month: "Dec", amount: 389 },
-];
-
-export function SpendingChart({ className }: SpendingChartProps) {
+export function SpendingChart({ className, data }: SpendingChartProps) {
   return (
     <div
       className={cn(

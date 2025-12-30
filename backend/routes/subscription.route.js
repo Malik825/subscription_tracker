@@ -23,6 +23,7 @@ import {
   // Bulk Operations
   bulkDeleteSubscriptions,
   bulkUpdateStatus,
+  seedSubscriptions,
 } from "../controllers/subscription.controller.js";
 
 const subscriptionRouter = Router();
@@ -36,6 +37,9 @@ subscriptionRouter.get("/", authMiddleware, getAllSubscriptions);
 
 // Create new subscription
 subscriptionRouter.post("/", authMiddleware, createSubscription);
+
+// Seed subscriptions
+subscriptionRouter.post("/seed", authMiddleware, seedSubscriptions);
 
 // Get user statistics
 subscriptionRouter.get("/stats", authMiddleware, getSubscriptionStats);

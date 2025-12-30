@@ -3,18 +3,10 @@ import { cn } from "@/lib/utils";
 
 interface CategoryBreakdownProps {
   className?: string;
+  data: { name: string; value: number; color: string }[];
 }
 
-const data = [
-  { name: "Entertainment", value: 89, color: "#8B5CF6" },
-  { name: "Productivity", value: 65, color: "#3B82F6" },
-  { name: "Development", value: 45, color: "#10B981" },
-  { name: "Design", value: 35, color: "#EC4899" },
-  { name: "Storage", value: 25, color: "#06B6D4" },
-  { name: "Other", value: 30, color: "#6B7280" },
-];
-
-export function CategoryBreakdown({ className }: CategoryBreakdownProps) {
+export function CategoryBreakdown({ className, data }: CategoryBreakdownProps) {
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
   return (

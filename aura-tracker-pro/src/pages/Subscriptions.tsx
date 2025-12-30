@@ -26,37 +26,34 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-
-const subscriptions = [
-  { id: 1, name: "Netflix", category: "Entertainment", price: 15.99, cycle: "monthly", nextBilling: "2024-02-15", status: "active", logo: "🎬" },
-  { id: 2, name: "Spotify", category: "Music", price: 9.99, cycle: "monthly", nextBilling: "2024-02-10", status: "active", logo: "🎵" },
-  { id: 3, name: "Adobe CC", category: "Productivity", price: 54.99, cycle: "monthly", nextBilling: "2024-02-20", status: "active", logo: "🎨" },
-  { id: 4, name: "GitHub Pro", category: "Development", price: 4.00, cycle: "monthly", nextBilling: "2024-02-18", status: "active", logo: "💻" },
-  { id: 5, name: "Figma", category: "Design", price: 12.00, cycle: "monthly", nextBilling: "2024-02-25", status: "active", logo: "✏️" },
-  { id: 6, name: "AWS", category: "Cloud", price: 45.00, cycle: "monthly", nextBilling: "2024-02-01", status: "active", logo: "☁️" },
-  { id: 7, name: "Slack", category: "Communication", price: 8.75, cycle: "monthly", nextBilling: "2024-02-12", status: "active", logo: "💬" },
-  { id: 8, name: "Notion", category: "Productivity", price: 10.00, cycle: "monthly", nextBilling: "2024-02-28", status: "paused", logo: "📝" },
-  { id: 9, name: "Dropbox", category: "Storage", price: 11.99, cycle: "monthly", nextBilling: "2024-03-05", status: "active", logo: "📦" },
-  { id: 10, name: "Zoom", category: "Communication", price: 14.99, cycle: "monthly", nextBilling: "2024-02-22", status: "cancelled", logo: "📹" },
-];
-
-const categories = ["All", "Entertainment", "Music", "Productivity", "Development", "Design", "Cloud", "Communication", "Storage"];
+import { useSubscriptions, useSubscriptionStats } from "@/hooks/useSubscriptions";
+import { format } from "date-fns";
+import { Loader2 } from "lucide-react";
 
 export default function Subscriptions() {
+  const { data: subscriptions, isLoading } = useSubscriptions();
+  const { data: stats } = useSubscriptionStats();
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
 
-  const filteredSubscriptions = subscriptions.filter((sub) => {
+  const filteredSubscriptions = (subscriptions || []).filter((sub) => {
     const matchesSearch = sub.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === "All" || sub.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const totalMonthly = filteredSubscriptions
-    .filter(s => s.status === "active")
-    .reduce((sum, sub) => sum + sub.price, 0);
+  const categories = ["All", "Entertainment", "Food", "Travel", "Shopping", "Subscription", "Others"];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen aura-bg">
@@ -133,15 +130,15 @@ export default function Subscriptions() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="glass rounded-xl p-4 animate-slide-in-left" style={{ animationDelay: "0ms" }}>
               <p className="text-sm text-muted-foreground">Active Subscriptions</p>
-              <p className="text-2xl font-bold">{subscriptions.filter(s => s.status === "active").length}</p>
+              <p className="text-2xl font-bold">{stats?.overview.active || 0}</p>
             </div>
             <div className="glass rounded-xl p-4 animate-slide-in-left" style={{ animationDelay: "100ms" }}>
               <p className="text-sm text-muted-foreground">Monthly Spending</p>
-              <p className="text-2xl font-bold text-primary">${totalMonthly.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-primary">${(stats?.spending?.totalMonthly || 0).toFixed(2)}</p>
             </div>
             <div className="glass rounded-xl p-4 animate-slide-in-left" style={{ animationDelay: "200ms" }}>
               <p className="text-sm text-muted-foreground">Yearly Projection</p>
-              <p className="text-2xl font-bold">${(totalMonthly * 12).toFixed(2)}</p>
+              <p className="text-2xl font-bold">${(stats?.spending?.totalYearly || 0).toFixed(2)}</p>
             </div>
           </div>
 
@@ -195,7 +192,7 @@ export default function Subscriptions() {
           )}>
             {filteredSubscriptions.map((sub, index) => (
               <div
-                key={sub.id}
+                key={sub._id}
                 className={cn(
                   "glass rounded-xl p-4 transition-all duration-300 hover:glow-border opacity-0 animate-fade-in",
                   viewMode === "list" && "flex items-center justify-between"
@@ -203,14 +200,17 @@ export default function Subscriptions() {
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className={cn("flex items-center gap-4", viewMode === "list" && "flex-1")}>
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-2xl">
-                    {sub.logo}
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold"
+                    style={{ color: getColorForCategory(sub.category) }}
+                  >
+                    {sub.name.charAt(0)}
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold">{sub.name}</h3>
                       <Badge
-                        variant={sub.status === "active" ? "default" : sub.status === "paused" ? "secondary" : "destructive"}
+                        variant={sub.status.toLowerCase() === "active" ? "default" : "secondary"}
                         className="text-xs"
                       >
                         {sub.status}
@@ -226,11 +226,11 @@ export default function Subscriptions() {
                 )}>
                   <div>
                     <p className="text-lg font-bold text-primary">${sub.price}</p>
-                    <p className="text-xs text-muted-foreground">/{sub.cycle}</p>
+                    <p className="text-xs text-muted-foreground">/{sub.frequency}</p>
                   </div>
                   <div className={cn(viewMode === "list" && "text-right")}>
                     <p className="text-sm">Next billing</p>
-                    <p className="text-sm text-muted-foreground">{sub.nextBilling}</p>
+                    <p className="text-sm text-muted-foreground">{sub.renewalDate ? format(new Date(sub.renewalDate), "MMM d, yyyy") : "N/A"}</p>
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -264,4 +264,20 @@ export default function Subscriptions() {
       </div>
     </div>
   );
+}
+
+function getColorForCategory(category: string): string {
+  const map: Record<string, string> = {
+    Entertainment: "#E50914",
+    Music: "#1DB954",
+    Development: "#6e5494",
+    Design: "#A259FF",
+    Productivity: "#000000",
+    Shopping: "#FF9900",
+    Food: "#4CAF50",
+    Travel: "#2196F3",
+    Others: "#9E9E9E",
+    Subscription: "#607D8B"
+  };
+  return map[category] || map.Others;
 }
