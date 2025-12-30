@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   // Transform data for charts
   const spendingData = stats?.spending.byCategory
-    ? Object.entries(stats.spending.byCategory).map(([name, val]: any) => ({
+    ? Object.entries(stats.spending.byCategory).map(([name, val]: [string, { monthly: number; yearly: number }]) => ({
       name,
       value: val.monthly,
       color: getColorForCategory(name)
@@ -48,7 +48,7 @@ export default function Dashboard() {
   const recentSubscriptions = subscriptions?.slice(0, 5) || [];
 
   // Transform renewals for display
-  const upcomingRenewals = stats?.upcomingRenewals.map((r: any) => ({
+  const upcomingRenewals = stats?.upcomingRenewals.map((r) => ({
     ...r,
     amount: r.price,
     date: r.renewalDate ? format(new Date(r.renewalDate), "MMM d") : "N/A",
@@ -130,12 +130,12 @@ export default function Dashboard() {
                 View all
               </a>
             </div>
-            {recentSubscriptions.map((sub: any, index: number) => (
+            {recentSubscriptions.map((sub, index: number) => (
               <SubscriptionCard
                 key={sub._id}
                 name={sub.name}
                 price={sub.price}
-                billingCycle={sub.frequency.toLowerCase()}
+                billingCycle={sub.frequency.toLowerCase() as "monthly" | "yearly" | "weekly"}
                 nextBilling={sub.renewalDate ? format(new Date(sub.renewalDate), "MMM d, yyyy") : "N/A"}
                 category={sub.category}
                 color={getColorForCategory(sub.category)}
@@ -155,8 +155,8 @@ export default function Dashboard() {
   );
 }
 
-function getColorForCategory(category: string) {
-  const map: any = {
+function getColorForCategory(category: string): string {
+  const map: Record<string, string> = {
     Entertainment: "#E50914",
     Music: "#1DB954",
     Development: "#6e5494",

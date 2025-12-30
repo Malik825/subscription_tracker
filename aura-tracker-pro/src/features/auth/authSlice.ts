@@ -30,12 +30,12 @@ export const registerUser = createAsyncThunk(
         try {
             const response = await api.post("/auth/signup", data);
             return response.data; // Expected { success: true, message: "...", data: { user, token } }
-        } catch (error: any) {
-            if (error.response && error.response.data.message) {
-                return rejectWithValue(error.response.data.message);
-            } else {
-                return rejectWithValue(error.message);
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Registration failed');
             }
+            return rejectWithValue('Registration failed');
         }
     }
 );
@@ -46,12 +46,12 @@ export const loginUser = createAsyncThunk(
         try {
             const response = await api.post("/auth/login", data);
             return response.data; // Expected { success: true, message: "...", data: { user } }
-        } catch (error: any) {
-            if (error.response && error.response.data.message) {
-                return rejectWithValue(error.response.data.message);
-            } else {
-                return rejectWithValue(error.message);
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Login failed');
             }
+            return rejectWithValue('Login failed');
         }
     }
 );
@@ -62,12 +62,12 @@ export const logoutUser = createAsyncThunk(
         try {
             await api.post("/auth/logout");
             return;
-        } catch (error: any) {
-            if (error.response && error.response.data.message) {
-                return rejectWithValue(error.response.data.message);
-            } else {
-                return rejectWithValue(error.message);
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Logout failed');
             }
+            return rejectWithValue('Logout failed');
         }
     }
 );
@@ -78,12 +78,12 @@ export const checkAuth = createAsyncThunk(
         try {
             const response = await api.get("/auth/me");
             return response.data; // Expected { success: true, data: { user } }
-        } catch (error: any) {
-            if (error.response && error.response.data.message) {
-                return rejectWithValue(error.response.data.message);
-            } else {
-                return rejectWithValue(error.message);
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Auth check failed');
             }
+            return rejectWithValue('Auth check failed');
         }
     }
 );

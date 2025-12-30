@@ -36,7 +36,7 @@ export default function Auth() {
     },
   });
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: LoginInput | RegisterInput) => {
     // Determine which action to dispatch based on isLogin state
     const action = isLogin
       ? loginUser(data as LoginInput)

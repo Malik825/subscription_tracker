@@ -266,8 +266,8 @@ export default function Subscriptions() {
   );
 }
 
-function getColorForCategory(category: string) {
-  const map: any = {
+function getColorForCategory(category: string): string {
+  const map: Record<string, string> = {
     Entertainment: "#E50914",
     Music: "#1DB954",
     Development: "#6e5494",
