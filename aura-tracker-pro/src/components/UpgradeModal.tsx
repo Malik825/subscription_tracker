@@ -4,9 +4,10 @@ import { Check, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "@/store";
-import { upgradeUser } from "@/features/auth/authSlice";
+import { createStripeCheckout, initializePaystack } from "@/features/auth/authSlice";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { CreditCard, Globe } from "lucide-react";
 
 interface UpgradeModalProps {
     isOpen: boolean;
@@ -16,7 +17,7 @@ interface UpgradeModalProps {
 export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
     const dispatch = useDispatch<AppDispatch>();
     const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState<"stripe" | "paystack" | null>(null);
 
     const features = [
         "Unlimited Subscriptions",
@@ -27,24 +28,26 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
         "Custom Categories"
     ];
 
-    const handleUpgrade = async () => {
-        setIsLoading(true);
+    const handleUpgrade = async (gateway: "stripe" | "paystack") => {
+        setIsLoading(gateway);
         try {
-            await dispatch(upgradeUser()).unwrap();
-            toast({
-                title: "Success",
-                description: "Welcome to Aura Tracker Pro!",
-            });
-            onClose();
+            const action = gateway === "stripe" ? createStripeCheckout() : initializePaystack();
+            const result = await dispatch(action).unwrap();
+
+            if (result.success && result.data.checkoutUrl) {
+                window.location.href = result.data.checkoutUrl;
+            } else {
+                throw new Error(`Failed to initiate ${gateway} checkout`);
+            }
         } catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             toast({
                 title: "Error",
-                description: errorMessage || "Failed to upgrade. Please try again.",
+                description: errorMessage || `Failed to initiate ${gateway} checkout. Please try again.`,
                 variant: "destructive",
             });
         } finally {
-            setIsLoading(false);
+            setIsLoading(null);
         }
     };
 
@@ -85,23 +88,45 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                         <Button
                             variant="glow"
                             size="xl"
-                            className="w-full text-lg font-bold rounded-2xl h-14"
-                            onClick={handleUpgrade}
-                            disabled={isLoading}
+                            className="w-full text-lg font-bold rounded-2xl h-14 gap-3"
+                            onClick={() => handleUpgrade("stripe")}
+                            disabled={isLoading !== null}
                         >
-                            {isLoading ? (
+                            {isLoading === "stripe" ? (
                                 <>
-                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    <Loader2 className="h-5 w-5 animate-spin" />
                                     Processing...
                                 </>
                             ) : (
-                                "Get Started — $9.99/mo"
+                                <>
+                                    <Globe className="h-5 w-5" />
+                                    Pay with Card (Stripe)
+                                </>
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="xl"
+                            className="w-full text-lg font-bold rounded-2xl h-14 gap-3 border-2 hover:bg-primary/5"
+                            onClick={() => handleUpgrade("paystack")}
+                            disabled={isLoading !== null}
+                        >
+                            {isLoading === "paystack" ? (
+                                <>
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    Processing...
+                                </>
+                            ) : (
+                                <>
+                                    <CreditCard className="h-5 w-5 text-primary" />
+                                    Pay with Paystack
+                                </>
                             )}
                         </Button>
                         <Button
                             variant="ghost"
-                            className="w-full text-muted-foreground hover:text-foreground"
-                            disabled={isLoading}
+                            className="w-full text-muted-foreground hover:text-foreground mt-2"
+                            disabled={isLoading !== null}
                             onClick={onClose}
                         >
                             Maybe later

@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 
 config({ path: `.env.${process.env.NODE_ENV || "development"}.local` });
+
 export const {
   PORT,
   NODE_ENV,
@@ -11,7 +12,13 @@ export const {
   ARCJET_KEY,
   QSTASH_URL,
   QSTASH_TOKEN,
-    SERVER_URL,
-    EMAIL_PASSWORD,
+  SERVER_URL,
+  EMAIL_PASSWORD,
   EMAIL_USER,
+  FRONTEND_URL, // Add this
+  STRIPE_SECRET_KEY,
+  STRIPE_WEBHOOK_SECRET,
+  STRIPE_PRO_PRICE_ID,
+  PAYSTACK_SECRET_KEY,
+  PAYSTACK_PLAN_CODE,
 } = process.env;

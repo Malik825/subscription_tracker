@@ -105,6 +105,38 @@ export const upgradeUser = createAsyncThunk(
     }
 );
 
+export const createStripeCheckout = createAsyncThunk(
+    "auth/stripeCheckout",
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.post("/payments/stripe/checkout");
+            return response.data; // Expected { success: true, data: { checkoutUrl } }
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Stripe checkout failed');
+            }
+            return rejectWithValue('Stripe checkout failed');
+        }
+    }
+);
+
+export const initializePaystack = createAsyncThunk(
+    "auth/paystackInitialize",
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.post("/payments/paystack/initialize");
+            return response.data; // Expected { success: true, data: { checkoutUrl } }
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Paystack initialization failed');
+            }
+            return rejectWithValue('Paystack initialization failed');
+        }
+    }
+);
+
 const authSlice = createSlice({
     name: "auth",
     initialState,
