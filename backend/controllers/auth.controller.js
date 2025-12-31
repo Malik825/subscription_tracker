@@ -81,8 +81,8 @@ export const loginUser = async (req, res, next) => {
       throw error;
     }
 
-    // Only check verification in development
-    if (NODE_ENV === "development" && !user.isVerified) {
+    // Only check verification in production
+    if (NODE_ENV === "production" && !user.isVerified) {
       const error = new Error("Please verify your email to login");
       error.statusCode = 403;
       throw error;
@@ -94,8 +94,8 @@ export const loginUser = async (req, res, next) => {
 
     res.cookie("token", token, {
       httpOnly: true,
-      secure: NODE_ENV === "development",
-      sameSite: NODE_ENV === "development" ? "none" : "lax",
+      secure: NODE_ENV === "production",
+      sameSite: NODE_ENV === "production" ? "none" : "lax",
       maxAge: 24 * 60 * 60 * 1000,
     });
 
@@ -147,8 +147,8 @@ export const logoutUser = async (req, res, next) => {
   try {
     res.clearCookie("token", {
       httpOnly: true,
-      secure: NODE_ENV === "development",
-      sameSite: NODE_ENV === "development" ? "none" : "lax",
+      secure: NODE_ENV === "production",
+      sameSite: NODE_ENV === "production" ? "none" : "lax",
     });
     res.status(200).json({ success: true, message: "Logged out successfully" });
   } catch (error) {
