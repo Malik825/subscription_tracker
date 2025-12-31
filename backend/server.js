@@ -14,6 +14,9 @@ import { FRONTEND_URL } from './config/env.js';
 
 // Initialize Express app
 const app = express();
+if (NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // global middlewares
 const allowedOrigins = [
