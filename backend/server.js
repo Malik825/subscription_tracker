@@ -9,11 +9,17 @@ import cookieParser from 'cookie-parser';
 import arcjetMiddleware from './middlewares/arcjet.middleware.js';
 import workflowRouter from './routes/workflow.route.js';
 import paymentRouter from './routes/payment.route.js';
+import cors from 'cors';
+import { FRONTEND_URL } from './config/env.js';
 
 // Initialize Express app
 const app = express();
 
 // global middlewares
+app.use(cors({
+  origin: FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
 app.use(express.json({
   verify: (req, res, buf) => {
     req.rawBody = buf;

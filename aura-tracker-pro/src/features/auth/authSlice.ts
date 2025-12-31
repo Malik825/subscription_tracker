@@ -244,6 +244,32 @@ const authSlice = createSlice({
         builder.addCase(upgradeUser.fulfilled, (state, action) => {
             state.user = action.payload.data;
         });
+
+        // Forgot Password
+        builder.addCase(forgotPassword.pending, (state) => {
+            state.isLoading = true;
+            state.error = null;
+        });
+        builder.addCase(forgotPassword.fulfilled, (state) => {
+            state.isLoading = false;
+        });
+        builder.addCase(forgotPassword.rejected, (state, action) => {
+            state.isLoading = false;
+            state.error = action.payload as string;
+        });
+
+        // Reset Password
+        builder.addCase(resetPassword.pending, (state) => {
+            state.isLoading = true;
+            state.error = null;
+        });
+        builder.addCase(resetPassword.fulfilled, (state) => {
+            state.isLoading = false;
+        });
+        builder.addCase(resetPassword.rejected, (state, action) => {
+            state.isLoading = false;
+            state.error = action.payload as string;
+        });
     },
 });
 
