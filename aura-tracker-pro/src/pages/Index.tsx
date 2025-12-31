@@ -170,7 +170,7 @@ export default function Index() {
                 key={plan.name}
                 className={cn(
                   "relative group transition-all duration-500",
-                  "stat-card glass-premium rounded-[2.5rem] p-10 opacity-0 animate-fade-in-up",
+                  "stat-card glass-premium rounded-[2.5rem] p-10 opacity-0 animate-fade-in-up overflow-visible",
                   plan.popular ? "scale-105 z-10 glow-border-primary ring-1 ring-primary/20 bg-background/40" : "hover:scale-[1.02] bg-background/20"
                 )}
                 style={{ animationDelay: `${index * 150}ms` }}

@@ -161,6 +161,10 @@
     box-shadow: 0 0 30px -10px hsl(var(--glow-primary) / 0.4);
   }
 
+  .glass-premium {
+    @apply backdrop-blur-2xl border border-white/10 shadow-2xl;
+  }
+
   /* Gradient text */
   .gradient-text {
     @apply bg-clip-text text-transparent;
@@ -202,7 +206,7 @@
 
   /* Stat card gradient border */
   .stat-card {
-    @apply relative rounded-xl overflow-hidden;
+    @apply relative rounded-xl;
   }
 
   .stat-card::before {

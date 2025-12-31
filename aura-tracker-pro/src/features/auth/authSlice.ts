@@ -153,9 +153,15 @@ export const forgotPassword = createAsyncThunk(
     }
 );
 
+interface ResetPasswordData {
+    email: string;
+    otp: string;
+    newPassword: string;
+}
+
 export const resetPassword = createAsyncThunk(
     "auth/resetPassword",
-    async (data: any, { rejectWithValue }) => {
+    async (data: ResetPasswordData, { rejectWithValue }) => {
         try {
             const response = await api.post("/auth/reset-password", data);
             return response.data;
