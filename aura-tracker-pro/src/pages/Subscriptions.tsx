@@ -114,11 +114,11 @@ export default function Subscriptions() {
     form.reset({
       name: sub.name,
       price: sub.price,
-      currency: sub.currency as any,
-      frequency: sub.frequency as any,
-      category: sub.category as any,
+      currency: sub.currency as SubscriptionInput["currency"],
+      frequency: sub.frequency as SubscriptionInput["frequency"],
+      category: sub.category as SubscriptionInput["category"],
       startDate: new Date(sub.startDate),
-      status: sub.status as any,
+      status: sub.status as SubscriptionInput["status"],
       website: sub.website || "",
     });
     setIsAddDialogOpen(true);

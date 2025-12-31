@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
+import { SubscriptionInput } from "@/schemas/subscriptionSchema";
 
 // Define Subscription type
 export interface Subscription {
@@ -99,7 +100,7 @@ export const useCreateSubscription = () => {
     const { user } = useAuth();
 
     return useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: SubscriptionInput) => {
             const response = await api.post("/subscriptions", data);
             return response.data.data;
         },
@@ -115,7 +116,7 @@ export const useUpdateSubscription = () => {
     const { user } = useAuth();
 
     return useMutation({
-        mutationFn: async ({ id, data }: { id: string; data: any }) => {
+        mutationFn: async ({ id, data }: { id: string; data: SubscriptionInput }) => {
             const response = await api.patch(`/subscriptions/${id}`, data);
             return response.data.data;
         },

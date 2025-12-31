@@ -36,10 +36,11 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                 description: "Welcome to Aura Tracker Pro!",
             });
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             toast({
                 title: "Error",
-                description: error || "Failed to upgrade. Please try again.",
+                description: errorMessage || "Failed to upgrade. Please try again.",
                 variant: "destructive",
             });
         } finally {
