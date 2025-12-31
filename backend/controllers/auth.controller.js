@@ -46,9 +46,8 @@ export const registerUser = async (req, res, next) => {
     await session.commitTransaction();
     session.endSession();
 
-    // Send verification email
-    sendVerificationEmail(email, verificationToken).catch(() => {
-      // Silently catch error to prevent crashing, or handle appropriately
+    sendVerificationEmail(email, verificationToken).catch((err) => {
+      console.error("Verification email failed:", err.message);
     });
 
     res.status(201).json({
