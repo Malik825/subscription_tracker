@@ -5,7 +5,7 @@ import { Zap } from "lucide-react";
 
 export function Navbar() {
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
+    <nav className="fixed top-0 left-0 right-0 z-100 bg-background border-b border-border">
       <div className="w-full px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 max-w-7xl mx-auto">
           {/* Logo */}
@@ -16,13 +16,12 @@ export function Navbar() {
             <span className="text-base sm:text-xl font-bold text-foreground truncate">SubTrack</span>
           </Link>
 
-          {/* Right Side Actions */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <div className="shrink-0">
               <ThemeToggle />
             </div>
             
-            {/* Desktop: Show both buttons */}
+       
             <Link to="/auth" className="hidden sm:block shrink-0">
               <Button variant="ghost" size="sm" className="h-9">
                 Sign In
