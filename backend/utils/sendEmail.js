@@ -1,29 +1,25 @@
-import { Resend } from "resend";
-import { RESEND_API_KEY, FRONTEND_URL } from "../config/env.js";
+import sgMail from "@sendgrid/mail";
+import { SENDGRID_API_KEY, FRONTEND_URL } from "../config/env.js";
 
-if (!RESEND_API_KEY) {
+if (!SENDGRID_API_KEY) {
   throw new Error(
-    "RESEND_API_KEY is required but not found in environment variables"
+    "SENDGRID_API_KEY is required but not found in environment variables"
   );
 }
 
-const resend = new Resend(RESEND_API_KEY);
+sgMail.setApiKey(SENDGRID_API_KEY);
 
-// Using Resend's onboarding email until custom domain is verified
-const FROM_EMAIL = "onboarding@resend.dev";
+// Use your verified SendGrid email
+const FROM_EMAIL = "abdulmaliksuleman75@gmail.com";
 
 export const sendVerificationEmail = async (email, verificationToken) => {
   try {
-    console.log(`[RESEND] Sending verification email to ${email}`);
-
     const clientUrl = FRONTEND_URL || "http://localhost:5173";
     const verificationLink = `${clientUrl}/verify-email?token=${verificationToken}`;
 
-    console.log(`[RESEND] Verification link: ${verificationLink}`);
-
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
+    const msg = {
       to: email,
+      from: FROM_EMAIL,
       subject: "Verify Your Email - SubDub",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
@@ -36,35 +32,21 @@ export const sendVerificationEmail = async (email, verificationToken) => {
           <p style="text-align: center; color: #999; font-size: 12px;">If you didn't create an account, you can safely ignore this email.</p>
         </div>
       `,
-    });
+      text: `Welcome to SubDub! Please verify your email by clicking this link: ${verificationLink}. This link expires in 24 hours.`,
+    };
 
-    if (error) {
-      console.error("[RESEND] ❌ API returned error:", error);
-      throw error;
-    }
-
-    console.log(
-      `[RESEND] ✅ Verification email sent successfully. Email ID: ${data?.id}`
-    );
-    console.log(`[RESEND] Full response:`, data);
-    return data;
+    await sgMail.send(msg);
+    return { success: true };
   } catch (error) {
-    console.error(
-      "[RESEND] ❌ Failed to send verification email:",
-      error.message
-    );
-    console.error("[RESEND] Error stack:", error.stack);
     throw new Error("Could not send verification email");
   }
 };
 
 export const sendPasswordResetEmail = async (email, otp) => {
   try {
-    console.log(`[RESEND] Sending password reset email to ${email}`);
-
-    const { data, error } = await resend.emails.send({
-      from: FROM_EMAIL,
+    const msg = {
       to: email,
+      from: FROM_EMAIL,
       subject: "Password Reset OTP - SubDub",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
@@ -77,24 +59,12 @@ export const sendPasswordResetEmail = async (email, otp) => {
           <p style="text-align: center; color: #999; font-size: 12px;">If you didn't request a password reset, you can safely ignore this email.</p>
         </div>
       `,
-    });
+      text: `Your password reset code is: ${otp}. This code expires in 15 minutes.`,
+    };
 
-    if (error) {
-      console.error("[RESEND] ❌ API returned error:", error);
-      throw error;
-    }
-
-    console.log(
-      `[RESEND] ✅ Password reset email sent successfully. Email ID: ${data?.id}`
-    );
-    console.log(`[RESEND] Full response:`, data);
-    return data;
+    await sgMail.send(msg);
+    return { success: true };
   } catch (error) {
-    console.error(
-      "[RESEND] ❌ Failed to send password reset email:",
-      error.message
-    );
-    console.error("[RESEND] Error stack:", error.stack);
     throw new Error("Could not send password reset email");
   }
 };
