@@ -2,7 +2,7 @@ import mongoose from "mongoose"
 import bcrypt from "bcrypt";
 import User from "../models/user.model.js";
 import jwt from "jsonwebtoken";
-import { JWT_EXPIRES_IN, JWT_SECRET } from "../config/env.js";
+import { JWT_EXPIRES_IN, JWT_SECRET, NODE_ENV } from "../config/env.js";
 
 import crypto from 'crypto';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
@@ -87,8 +87,8 @@ export const loginUser = async (req, res, next) => {
 
         res.cookie('token', token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            secure: NODE_ENV === 'production',
+            sameSite: NODE_ENV === 'production' ? 'none' : 'lax', // Use 'none' for cross-domain in production
             maxAge: 24 * 60 * 60 * 1000 // 1 day
         });
 
@@ -143,7 +143,11 @@ export const verifyEmail = async (req, res, next) => {
 
 export const logoutUser = async (req, res, next) => {
     try {
-        res.clearCookie('token');
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: NODE_ENV === 'production',
+            sameSite: NODE_ENV === 'production' ? 'none' : 'lax',
+        });
         res.status(200).json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
         next(error);
