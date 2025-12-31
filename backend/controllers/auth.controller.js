@@ -16,16 +16,19 @@ export const registerUser = async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
     const existingUser = await mongoose.model("User").findOne({ email });
+
     if (existingUser) {
       const error = new Error("User already exists with this email");
       error.statusCode = 409;
       throw error;
     }
+
     const verificationToken = crypto.randomBytes(32).toString("hex");
-    const verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    const verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
 
     const salt = await bcrypt.genSalt(10);
     const hashePassword = await bcrypt.hash(password, salt);
+
     const newUser = await User.create(
       [
         {
@@ -34,7 +37,7 @@ export const registerUser = async (req, res, next) => {
           password: hashePassword,
           verificationToken,
           verificationTokenExpiresAt,
-          isVerified: NODE_ENV === "production", // Auto-verify in production
+          isVerified: false, // Must verify via email in all environments
         },
       ],
       { session }
@@ -43,19 +46,15 @@ export const registerUser = async (req, res, next) => {
     await session.commitTransaction();
     session.endSession();
 
-    // Send verification email asynchronously (non-blocking)
-    if (NODE_ENV === "production") {
-      sendVerificationEmail(email, verificationToken).catch((error) => {
-        console.error("Error sending verification email:", error);
-      });
-    }
+    // Send verification email
+    sendVerificationEmail(email, verificationToken).catch(() => {
+      // Silently catch error to prevent crashing, or handle appropriately
+    });
 
     res.status(201).json({
       success: true,
       message:
-        NODE_ENV === "production"
-          ? "User created successfully. Email verification skipped in production."
-          : "User created successfully. Please check your email to verify your account.",
+        "User created successfully. Please check your email to verify your account.",
       data: {
         user: newUser[0],
       },
