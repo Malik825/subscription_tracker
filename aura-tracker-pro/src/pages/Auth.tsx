@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useDispatch, useSelector } from "react-redux";
@@ -255,16 +255,14 @@ export default function Auth() {
               </div>
             )}
 
-            {isLogin && (
-              <div className="flex justify-end">
-                <a
-                  href="#"
-                  className="text-sm text-primary hover:underline"
-                >
-                  Forgot password?
-                </a>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <Button
               type="submit"

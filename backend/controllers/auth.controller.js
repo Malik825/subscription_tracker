@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 import { JWT_EXPIRES_IN, JWT_SECRET } from "../config/env.js";
 
 import crypto from 'crypto';
-import { sendVerificationEmail } from '../utils/sendEmail.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/sendEmail.js';
 
 export const registerUser = async (req, res, next) => {
     const session = await mongoose.startSession();
@@ -158,6 +158,66 @@ export const getCurrentUser = async (req, res, next) => {
             data: {
                 user: req.user
             }
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export const forgotPassword = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            const error = new Error('User not found with this email');
+            error.statusCode = 404;
+            throw error;
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+        user.resetPasswordToken = otp;
+        user.resetPasswordTokenExpiresAt = otpExpiresAt;
+        await user.save();
+
+        await sendPasswordResetEmail(email, otp);
+
+        res.status(200).json({
+            success: true,
+            message: 'Password reset OTP sent to your email',
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export const resetPassword = async (req, res, next) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        const user = await User.findOne({
+            email,
+            resetPasswordToken: otp,
+            resetPasswordTokenExpiresAt: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            const error = new Error('Invalid or expired OTP');
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(newPassword, salt);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordTokenExpiresAt = undefined;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Password reset successfully',
         });
     } catch (error) {
         next(error);

@@ -137,6 +137,38 @@ export const initializePaystack = createAsyncThunk(
     }
 );
 
+export const forgotPassword = createAsyncThunk(
+    "auth/forgotPassword",
+    async (email: string, { rejectWithValue }) => {
+        try {
+            const response = await api.post("/auth/forgot-password", { email });
+            return response.data;
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Forgot password request failed');
+            }
+            return rejectWithValue('Forgot password request failed');
+        }
+    }
+);
+
+export const resetPassword = createAsyncThunk(
+    "auth/resetPassword",
+    async (data: any, { rejectWithValue }) => {
+        try {
+            const response = await api.post("/auth/reset-password", data);
+            return response.data;
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Reset password failed');
+            }
+            return rejectWithValue('Reset password failed');
+        }
+    }
+);
+
 const authSlice = createSlice({
     name: "auth",
     initialState,
