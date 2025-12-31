@@ -3,13 +3,17 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+
 import api from "@/lib/axios";
+import { checkAuth } from "@/features/auth/authSlice";
+import { useAppDispatch } from "@/redux";
 
 export default function VerifyEmail() {
     const [searchParams] = useSearchParams();
     const token = searchParams.get("token");
     const navigate = useNavigate();
     const { toast } = useToast();
+    const dispatch = useAppDispatch();
 
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
@@ -21,16 +25,29 @@ export default function VerifyEmail() {
 
         const verify = async () => {
             try {
-                await api.post("/auth/verify-email", { token });
+                const response = await api.post("/auth/verify-email", { token });
+                
+                // User is now auto-logged in via cookie
+                // Refresh Redux state with verified user
+                await dispatch(checkAuth());
+                
                 setStatus("success");
+                toast({
+                    title: "Success!",
+                    description: response.data.message || "Email verified successfully! You are now logged in.",
+                });
             } catch (error) {
                 setStatus("error");
-                console.error("Verification failed:", error);
+                toast({
+                    title: "Verification Failed",
+                    description: "This link may be invalid or expired.",
+                    variant: "destructive",
+                });
             }
         };
 
         verify();
-    }, [token]);
+    }, [token, dispatch, toast]);
 
     return (
         <div className="min-h-screen flex items-center justify-center aura-bg p-4">
@@ -50,7 +67,7 @@ export default function VerifyEmail() {
                             <CheckCircle2 className="h-10 w-10 text-green-500" />
                         </div>
                         <h1 className="text-2xl font-bold text-green-500">Email Verified!</h1>
-                        <p className="text-muted-foreground">Thank you for verifying your email. You can now access your dashboard.</p>
+                        <p className="text-muted-foreground">Thank you for verifying your email. You are now logged in and can access your dashboard.</p>
                         <Button
                             className="w-full mt-4"
                             variant="glow"
