@@ -7,6 +7,7 @@ interface User {
     _id: string;
     username: string;
     email: string;
+    plan: "free" | "pro";
 }
 
 interface AuthState {
@@ -88,6 +89,22 @@ export const checkAuth = createAsyncThunk(
     }
 );
 
+export const upgradeUser = createAsyncThunk(
+    "auth/upgrade",
+    async (_, { rejectWithValue }) => {
+        try {
+            const response = await api.put("/users/upgrade");
+            return response.data; // Expected { success: true, data: { user } }
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'response' in error) {
+                const axiosError = error as { response?: { data?: { message?: string } }; message?: string };
+                return rejectWithValue(axiosError.response?.data?.message || axiosError.message || 'Upgrade failed');
+            }
+            return rejectWithValue('Upgrade failed');
+        }
+    }
+);
+
 const authSlice = createSlice({
     name: "auth",
     initialState,
@@ -151,6 +168,11 @@ const authSlice = createSlice({
         builder.addCase(checkAuth.rejected, (state) => {
             state.isLoading = false;
             state.user = null;
+        });
+
+        // Upgrade
+        builder.addCase(upgradeUser.fulfilled, (state, action) => {
+            state.user = action.payload.data;
         });
     },
 });

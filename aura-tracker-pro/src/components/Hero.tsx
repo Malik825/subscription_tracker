@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { Sparkles, ArrowRight, Plus } from "lucide-react";
 import DashboardMockup from "../assets/dashboard-mockup.png";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Hero = () => {
+  const { isAuthenticated } = useAuth();
+
   return (
     <section className="relative pt-32 pb-20 px-6 overflow-hidden">
       {/* Background decoration */}
@@ -30,17 +33,36 @@ export const Hero = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start opacity-0 animate-fade-in-up animation-delay-300">
-            <Link to="/auth">
-              <Button variant="glow" size="xl" className="w-full sm:w-auto">
-                Start Free Trial
-                <ArrowRight className="h-5 w-5 ml-2" />
-              </Button>
-            </Link>
-            <Link to="/dashboard">
-              <Button variant="outline" size="xl" className="w-full sm:w-auto">
-                View Demo
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard">
+                  <Button variant="glow" size="xl" className="w-full sm:w-auto">
+                    Go to Dashboard
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                  </Button>
+                </Link>
+                <Link to="/subscriptions">
+                  <Button variant="outline" size="xl" className="w-full sm:w-auto">
+                    <Plus className="h-5 w-5 mr-2" />
+                    Add Subscription
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button variant="glow" size="xl" className="w-full sm:w-auto">
+                    Start Free Trial
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                  </Button>
+                </Link>
+                <Link to="/dashboard">
+                  <Button variant="outline" size="xl" className="w-full sm:w-auto">
+                    Explore Dashboard
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 opacity-0 animate-fade-in-up animation-delay-400">

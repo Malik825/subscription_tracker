@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
@@ -125,25 +125,26 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Poppins', system-ui, sans-serif;
   }
 }
 
 @layer components {
+
   /* Glow effects */
   .glow-primary {
     box-shadow: 0 0 40px -10px hsl(var(--glow-primary) / 0.5),
-                0 0 80px -20px hsl(var(--glow-primary) / 0.3);
+      0 0 80px -20px hsl(var(--glow-primary) / 0.3);
   }
 
   .glow-accent {
     box-shadow: 0 0 40px -10px hsl(var(--glow-secondary) / 0.5),
-                0 0 80px -20px hsl(var(--glow-tertiary) / 0.3);
+      0 0 80px -20px hsl(var(--glow-tertiary) / 0.3);
   }
 
   .glow-border {
     box-shadow: 0 0 0 1px hsl(var(--glow-primary) / 0.2),
-                0 0 20px -5px hsl(var(--glow-primary) / 0.3);
+      0 0 20px -5px hsl(var(--glow-primary) / 0.3);
   }
 
   /* Glass effect */
@@ -179,16 +180,12 @@
     left: -50%;
     width: 200%;
     height: 200%;
-    background: radial-gradient(
-      circle at 30% 30%,
-      hsl(var(--glow-primary) / 0.08) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 70% 70%,
-      hsl(var(--glow-secondary) / 0.06) 0%,
-      transparent 50%
-    );
+    background: radial-gradient(circle at 30% 30%,
+        hsl(var(--glow-primary) / 0.08) 0%,
+        transparent 50%),
+      radial-gradient(circle at 70% 70%,
+        hsl(var(--glow-secondary) / 0.06) 0%,
+        transparent 50%);
     animation: aura-rotate 30s linear infinite;
     pointer-events: none;
   }
@@ -197,6 +194,7 @@
     from {
       transform: rotate(0deg);
     }
+
     to {
       transform: rotate(360deg);
     }
@@ -213,12 +211,10 @@
     inset: 0;
     padding: 1px;
     border-radius: inherit;
-    background: linear-gradient(
-      135deg,
-      hsl(var(--glow-primary) / 0.3),
-      transparent 50%,
-      hsl(var(--glow-secondary) / 0.2)
-    );
+    background: linear-gradient(135deg,
+        hsl(var(--glow-primary) / 0.3),
+        transparent 50%,
+        hsl(var(--glow-secondary) / 0.2));
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
@@ -228,12 +224,27 @@
 }
 
 @layer utilities {
+
   /* Animation delays */
-  .animation-delay-100 { animation-delay: 100ms; }
-  .animation-delay-200 { animation-delay: 200ms; }
-  .animation-delay-300 { animation-delay: 300ms; }
-  .animation-delay-400 { animation-delay: 400ms; }
-  .animation-delay-500 { animation-delay: 500ms; }
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+
+  .animation-delay-400 {
+    animation-delay: 400ms;
+  }
+
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
 
   /* Smooth transitions */
   .transition-smooth {
@@ -244,15 +255,15 @@
   .perspective-1000 {
     perspective: 1000px;
   }
-  
+
   .transform-style-3d {
     transform-style: preserve-3d;
   }
-  
+
   .rotate-y-\[-5deg\] {
     transform: rotateY(-5deg);
   }
-  
+
   .rotate-x-\[5deg\] {
     transform: rotateX(5deg);
   }
