@@ -34,7 +34,7 @@ export const registerUser = async (req, res, next) => {
           password: hashePassword,
           verificationToken,
           verificationTokenExpiresAt,
-          isVerified: NODE_ENV === "development", // Auto-verify in development
+          isVerified: NODE_ENV === "production", // Auto-verify in production
         },
       ],
       { session }
@@ -53,8 +53,8 @@ export const registerUser = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message:
-        NODE_ENV === "development"
-          ? "User created successfully. Email verification skipped in development."
+        NODE_ENV === "production"
+          ? "User created successfully. Email verification skipped in production."
           : "User created successfully. Please check your email to verify your account.",
       data: {
         user: newUser[0],
