@@ -1,6 +1,6 @@
 import express from 'express';
 import authRouter from './routes/auth.routes.js';
-import { PORT } from './config/env.js';
+import { PORT, NODE_ENV } from './config/env.js';
 import userRouter from './routes/user.route.js';
 import subscriptionRouter from './routes/subscription.route.js';
 import connectDB from './database/mongodb.js';
@@ -14,11 +14,31 @@ import { FRONTEND_URL } from './config/env.js';
 
 // Initialize Express app
 const app = express();
+if (NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // global middlewares
+const allowedOrigins = [
+  'https://subscription-tracker-lovat.vercel.app',
+  'http://localhost:5173',
+  FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked for origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 app.use(express.json({
   verify: (req, res, buf) => {
