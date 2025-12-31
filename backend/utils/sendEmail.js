@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { EMAIL_USER, EMAIL_PASSWORD } from '../config/env.js';
+import { EMAIL_USER, EMAIL_PASSWORD, FRONTEND_URL } from '../config/env.js';
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
 export const sendVerificationEmail = async (email, verificationToken) => {
     // Determine the frontend URL based on environment (simplified for now)
     // In production, this should come from process.env.CLIENT_URL
-    const clientUrl = 'http://localhost:8080';
+    const clientUrl = FRONTEND_URL || 'http://localhost:5173';
     const verificationLink = `${clientUrl}/verify-email?token=${verificationToken}`;
 
     const mailOptions = {
