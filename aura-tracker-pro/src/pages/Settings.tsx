@@ -17,8 +17,22 @@ import {
     Globe,
     HelpCircle
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useDispatch } from "react-redux";
+import { logoutUser } from "@/features/auth/authSlice";
+import { AppDispatch } from "@/store";
+import { useNavigate } from "react-router-dom";
 
 export default function Settings() {
+    const { user } = useAuth();
+    const dispatch = useDispatch<AppDispatch>();
+    const navigate = useNavigate();
+
+    const handleLogout = async () => {
+        await dispatch(logoutUser());
+        navigate("/auth");
+    };
+
     return (
         <div className="min-h-screen aura-bg">
             <div className="p-8">
@@ -64,7 +78,11 @@ export default function Settings() {
                                     Billing
                                 </TabsTrigger>
                                 <Separator className="my-2 bg-white/10" />
-                                <Button variant="ghost" className="w-full justify-start gap-3 px-4 py-3 text-destructive hover:text-destructive hover:bg-destructive/10">
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start gap-3 px-4 py-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={handleLogout}
+                                >
                                     <LogOut className="h-4 w-4" />
                                     Sign Out
                                 </Button>
@@ -80,8 +98,8 @@ export default function Settings() {
                                         <h2 className="text-xl font-semibold mb-4">Public Profile</h2>
                                         <div className="flex items-center gap-6">
                                             <Avatar className="h-20 w-20 border-2 border-primary/20">
-                                                <AvatarImage src="https://github.com/shadcn.png" />
-                                                <AvatarFallback>JD</AvatarFallback>
+                                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.fullName}`} />
+                                                <AvatarFallback>{user?.fullName?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-2">
                                                 <Button variant="outline" size="sm">Change Avatar</Button>
@@ -92,12 +110,12 @@ export default function Settings() {
 
                                     <div className="grid gap-4">
                                         <div className="grid gap-2">
-                                            <Label htmlFor="name">Display Name</Label>
-                                            <Input id="name" defaultValue="John Doe" />
+                                            <Label htmlFor="name">Full Name</Label>
+                                            <Input id="name" defaultValue={user?.fullName} />
                                         </div>
                                         <div className="grid gap-2">
-                                            <Label htmlFor="bio">Bio</Label>
-                                            <Input id="bio" placeholder="Write a short bio..." />
+                                            <Label htmlFor="email">Email Address</Label>
+                                            <Input id="email" defaultValue={user?.email} disabled />
                                         </div>
                                     </div>
                                 </div>

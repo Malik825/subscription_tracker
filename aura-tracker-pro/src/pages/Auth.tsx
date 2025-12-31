@@ -1,44 +1,87 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useDispatch, useSelector } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Zap, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { loginSchema, registerSchema, LoginInput, RegisterInput } from "@/schemas/auth";
+import { loginUser, registerUser } from "@/features/auth/authSlice";
+import { AppDispatch, RootState } from "@/store";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const dispatch = useDispatch<AppDispatch>();
+  const { isLoading, error } = useSelector((state: RootState) => state.auth);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
+  const {
+    register: registerForm,
+    handleSubmit: handleFormSubmit,
+    formState: { errors },
+    reset,
+  } = useForm<RegisterInput>({
+    resolver: zodResolver(isLogin ? loginSchema : registerSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const onSubmit = async (data: LoginInput | RegisterInput) => {
+    // Determine which action to dispatch based on isLogin state
+    const action = isLogin
+      ? loginUser(data as LoginInput)
+      : registerUser(data as RegisterInput);
 
-    // Simulate API call - replace with actual API integration
-    setTimeout(() => {
-      setIsLoading(false);
+    const result = await dispatch(action);
+
+    if (loginUser.fulfilled.match(result)) {
       toast({
-        title: isLogin ? "Welcome back!" : "Account created!",
-        description: isLogin
-          ? "You have successfully logged in."
-          : "Your account has been created successfully.",
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
       });
       navigate("/dashboard");
-    }, 1500);
+    } else if (registerUser.fulfilled.match(result)) {
+      toast({
+        title: "Account created!",
+        description: "Please check your email to verify your account before logging in.",
+      });
+      setIsLogin(true); // Switch to login mode
+      reset();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Authentication Failed",
+        description: (result.payload as string) || "An unexpected error occurred.",
+      });
+    }
+  };
+
+  const toggleAuthMode = (loginMode: boolean) => {
+    setIsLogin(loginMode);
+    reset(); // Clear errors and values when switching modes
   };
 
   return (
-    <div className="min-h-screen flex aura-bg">
+    <div className="min-h-screen flex aura-bg relative">
+      {/* Back button */}
+      <Link
+        to="/"
+        className="absolute top-6 left-6 z-50 flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors glass px-4 py-2 rounded-full border-border/40"
+      >
+        <ArrowRight className="h-4 w-4 rotate-180" />
+        Back to Home
+      </Link>
+
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-primary/10 via-background to-background relative overflow-hidden">
         {/* Decorative elements */}
@@ -112,7 +155,7 @@ export default function Auth() {
           {/* Tab switcher */}
           <div className="flex glass rounded-lg p-1 opacity-0 animate-fade-in animation-delay-100">
             <button
-              onClick={() => setIsLogin(true)}
+              onClick={() => toggleAuthMode(true)}
               className={cn(
                 "flex-1 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
                 isLogin
@@ -123,7 +166,7 @@ export default function Auth() {
               Sign In
             </button>
             <button
-              onClick={() => setIsLogin(false)}
+              onClick={() => toggleAuthMode(false)}
               className={cn(
                 "flex-1 py-2.5 text-sm font-medium rounded-md transition-all duration-200",
                 !isLogin
@@ -136,25 +179,24 @@ export default function Auth() {
           </div>
 
           <form
-            onSubmit={handleSubmit}
+            onSubmit={handleFormSubmit(onSubmit)}
             className="space-y-5 opacity-0 animate-fade-in animation-delay-200"
           >
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="username">Username</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    id="name"
-                    placeholder="John Doe"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className="pl-10"
-                    required={!isLogin}
+                    id="username"
+                    placeholder="john_doe"
+                    {...registerForm("username")}
+                    className={cn("pl-10", errors.username && "border-destructive focus-visible:ring-destructive")}
                   />
                 </div>
+                {errors.username && (
+                  <p className="text-xs text-destructive">{errors.username.message}</p>
+                )}
               </div>
             )}
 
@@ -166,14 +208,13 @@ export default function Auth() {
                   id="email"
                   type="email"
                   placeholder="you@example.com"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="pl-10"
-                  required
+                  {...registerForm("email")}
+                  className={cn("pl-10", errors.email && "border-destructive focus-visible:ring-destructive")}
                 />
               </div>
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -184,12 +225,8 @@ export default function Auth() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className="pl-10 pr-10"
-                  required
+                  {...registerForm("password")}
+                  className={cn("pl-10 pr-10", errors.password && "border-destructive focus-visible:ring-destructive")}
                 />
                 <button
                   type="button"
@@ -203,18 +240,38 @@ export default function Auth() {
                   )}
                 </button>
               </div>
+              {errors.password && (
+                <p className="text-xs text-destructive">{errors.password.message}</p>
+              )}
             </div>
 
-            {isLogin && (
-              <div className="flex justify-end">
-                <a
-                  href="#"
-                  className="text-sm text-primary hover:underline"
-                >
-                  Forgot password?
-                </a>
+            {!isLogin && (
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    {...registerForm("confirmPassword")}
+                    className={cn("pl-10", errors.confirmPassword && "border-destructive focus-visible:ring-destructive")}
+                  />
+                </div>
+                {errors.confirmPassword && (
+                  <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+                )}
               </div>
             )}
+
+            <div className="flex justify-end">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <Button
               type="submit"

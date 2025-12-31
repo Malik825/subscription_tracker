@@ -11,6 +11,19 @@ export const createSubscription = async (req, res, next) => {
     console.log("\n🆕 Creating new subscription...");
     console.log("Request body:", JSON.stringify(req.body, null, 2));
     console.log("User ID:", req.user._id);
+    console.log("User Plan:", req.user.plan);
+
+    // Enforce limits for free users
+    if (req.user.plan === "free") {
+      const subscriptionCount = await Subscription.countDocuments({ user: req.user._id });
+      if (subscriptionCount >= 10) {
+        return res.status(403).json({
+          success: false,
+          message: "Free users are limited to 10 subscriptions. Please upgrade to Pro for unlimited tracking.",
+          code: "LIMIT_REACHED"
+        });
+      }
+    }
 
     const subscription = await Subscription.create({
       ...req.body,
@@ -139,7 +152,8 @@ export const getUserSubscriptions = async (req, res, next) => {
   try {
     console.log("\n📋 Fetching user subscriptions...");
     console.log("User ID from params:", req.params.id);
-    console.log("User ID from token:", req.user._id);
+    console.log("User ID from token:", req.user._id.toString());
+    console.log("IDs match:", req.user._id.toString() === req.params.id);
 
     // Check authorization
     if (req.user._id.toString() !== req.params.id) {
@@ -150,7 +164,8 @@ export const getUserSubscriptions = async (req, res, next) => {
       throw error;
     }
 
-    const { status, category, search } = req.query;
+    const { status, category, search, page = 1, limit = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build filter
     const filter = { user: req.params.id };
@@ -160,41 +175,25 @@ export const getUserSubscriptions = async (req, res, next) => {
       filter.name = { $regex: search, $options: "i" };
     }
 
-    const subscriptions = await Subscription.find(filter).sort({
-      createdAt: -1,
-    });
+    const subscriptions = await Subscription.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Subscription.countDocuments(filter);
 
     console.log(`✅ Found ${subscriptions.length} subscriptions for user`);
-
-    // Calculate statistics
-    const stats = {
-      total: subscriptions.length,
-      active: subscriptions.filter((s) => s.status.toLowerCase() === "active")
-        .length,
-      inactive: subscriptions.filter((s) => s.status.toLowerCase() !== "active")
-        .length,
-      totalMonthlySpend: subscriptions
-        .filter((s) => s.status.toLowerCase() === "active")
-        .reduce((sum, s) => {
-          if (s.frequency.toLowerCase() === "monthly") return sum + s.price;
-          if (s.frequency.toLowerCase() === "yearly") return sum + s.price / 12;
-          return sum;
-        }, 0),
-      totalYearlySpend: subscriptions
-        .filter((s) => s.status.toLowerCase() === "active")
-        .reduce((sum, s) => {
-          if (s.frequency.toLowerCase() === "yearly") return sum + s.price;
-          if (s.frequency.toLowerCase() === "monthly")
-            return sum + s.price * 12;
-          return sum;
-        }, 0),
-    };
 
     res.status(200).json({
       success: true,
       message: "Subscriptions retrieved successfully",
       data: subscriptions,
-      stats,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        totalItems: total,
+        itemsPerPage: parseInt(limit),
+      },
     });
   } catch (error) {
     console.error("❌ Error in getUserSubscriptions:", error);
@@ -799,6 +798,12 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
       _id: { $in: subscriptionIds },
     });
 
+    if (subscriptions.length !== subscriptionIds.length) {
+      const error = new Error("Some subscriptions not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
     const unauthorized = subscriptions.some(
       (s) => s.user.toString() !== req.user._id.toString()
     );
@@ -836,6 +841,61 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
     });
   } catch (error) {
     console.error("❌ Error in bulkDeleteSubscriptions:", error);
+    next(error);
+  }
+};
+
+// ============================================================================
+// SEED SUBSCRIPTIONS
+// ============================================================================
+export const seedSubscriptions = async (req, res, next) => {
+  try {
+    console.log("\n🌱 Seeding subscriptions for user:", req.user._id);
+
+    const subscriptionData = [
+      { name: "Netflix", price: 15.99, currency: "USD", frequency: "Monthly", category: "Entertainment" },
+      { name: "Spotify", price: 9.99, currency: "USD", frequency: "Monthly", category: "Entertainment" },
+      { name: "GitHub Pro", price: 4.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Figma", price: 12.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Notion", price: 10.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Adobe Creative Cloud", price: 54.99, currency: "USD", frequency: "Monthly", category: "Subscription" },
+      { name: "Amazon Prime", price: 139.00, currency: "USD", frequency: "Yearly", category: "Shopping" },
+      { name: "Uber One", price: 9.99, currency: "USD", frequency: "Monthly", category: "Travel" },
+      { name: "HelloFresh", price: 60.00, currency: "USD", frequency: "Weekly", category: "Food" },
+      { name: "Gym Membership", price: 45.00, currency: "USD", frequency: "Monthly", category: "Others" },
+    ];
+
+    const subscriptions = await Promise.all(
+      subscriptionData.map(async (sub) => {
+        const startDate = new Date(); // Start today
+        // Randomize start date slightly to last month or so
+        startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 30));
+
+        return {
+          ...sub,
+          startDate,
+          status: "Active",
+          user: req.user._id,
+          workflowStatus: "idle", // Don't trigger workflows for seeds to avoid spamming
+        };
+      })
+    );
+
+    const createdSubscriptions = [];
+    for (const sub of subscriptions) {
+      const createdSub = await Subscription.create(sub);
+      createdSubscriptions.push(createdSub);
+    }
+
+    console.log(`✅ Seeded ${createdSubscriptions.length} subscriptions`);
+
+    res.status(201).json({
+      success: true,
+      message: "Subscriptions seeded successfully",
+      data: createdSubscriptions,
+    });
+  } catch (error) {
+    console.error("❌ Error in seedSubscriptions:", error);
     next(error);
   }
 };

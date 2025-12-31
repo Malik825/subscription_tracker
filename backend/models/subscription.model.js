@@ -40,16 +40,10 @@ const subscriptionSchema = new mongoose.Schema({
         required: [true, 'Status is required'],
         default: 'Active'
     },
-startDate: {
-    type: Date,
-    required: [true, 'Start date is required'],
-    validate: {
-        validator: (v) => {
-            return v.getTime() > Date.now(); // This requires FUTURE dates only!
-        },
-        message: 'Start date must be in the future'
-    }
-},
+    startDate: {
+        type: Date,
+        required: [true, 'Start date is required'],
+    },
     renewalDate: {
         type: Date,
         validate: {
@@ -64,9 +58,9 @@ startDate: {
         ref: 'User',
         required: [true, 'User reference is required'],
         index: true
-      }
+    }
 
-    
+
 }, { timestamps: true });
 // Pre-save hook to set renewalDate based on frequency if not provided
 subscriptionSchema.pre("save", function () {
