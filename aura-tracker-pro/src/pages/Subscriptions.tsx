@@ -3,6 +3,16 @@ import { Plus, Search, Filter, Grid, List, MoreHorizontal, Edit, Trash2, Externa
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { useSubscriptions, useSubscriptionStats, useCreateSubscription, useUpdateSubscription, useDeleteSubscription, Subscription } from "@/hooks/useSubscriptions";
+import { format } from "date-fns";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { subscriptionSchema, SubscriptionInput } from "@/schemas/subscriptionSchema";
+import { useToast } from "@/hooks/use-toast";
+import { SubscriptionTable } from "@/components/SubscriptionTable";
+import { UpgradeModal } from "@/components/UpgradeModal";
+import { useAuth } from "@/hooks/useAuth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,16 +49,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
-import { useSubscriptions, useSubscriptionStats, useCreateSubscription, useUpdateSubscription, useDeleteSubscription, Subscription } from "@/hooks/useSubscriptions";
-import { format } from "date-fns";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { subscriptionSchema, SubscriptionInput } from "@/schemas/subscriptionSchema";
-import { useToast } from "@/hooks/use-toast";
-import { SubscriptionTable } from "@/components/SubscriptionTable";
-import { UpgradeModal } from "@/components/UpgradeModal";
-import { useAuth } from "@/hooks/useAuth";
 
 export default function Subscriptions() {
   const {
@@ -61,7 +61,12 @@ export default function Subscriptions() {
   const { data: stats } = useSubscriptionStats();
 
   const { user } = useAuth();
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  
+  // Set grid view on mobile, list on desktop
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    return window.innerWidth < 768 ? "grid" : "list";
+  });
+  
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -87,6 +92,17 @@ export default function Subscriptions() {
       website: "",
     },
   });
+
+  // Update view mode on resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setViewMode("grid");
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const onSubmit = async (data: SubscriptionInput) => {
     try {
@@ -198,33 +214,33 @@ export default function Subscriptions() {
   }
 
   return (
-    <div className="min-h-screen aura-bg">
-      <div className="p-8">
+    <div className="min-h-screen bg-background">
+      <div className="p-4 md:p-8">
         <div className="space-y-6 animate-fade-in">
           {/* Header */}
-          <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-foreground">Market history</h1>
+                <h1 className="text-2xl font-bold text-foreground">Subscriptions</h1>
                 <Info className="h-4 w-4 text-muted-foreground cursor-help" />
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
-                  className="gap-2 h-10 px-4 border-border/50 hover:bg-muted/50 transition-colors"
+                  className="gap-2 h-10 px-4"
                   onClick={handleExport}
                 >
-                  <Download className="h-4 w-4 text-muted-foreground" />
-                  <span>Export</span>
-                  {user?.plan === "free" && <Badge variant="secondary" className="ml-1 px-1 h-4 text-[10px] bg-primary/10 text-primary border-none uppercase font-bold">Pro</Badge>}
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Export</span>
+                  {user?.plan === "free" && <Badge variant="secondary" className="ml-1 px-1 h-4 text-[10px] bg-primary/10 text-primary">Pro</Badge>}
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-10 w-10 p-0 border-border/50">
+                    <Button variant="outline" size="sm" className="hidden md:flex h-10 w-10 p-0">
                       <Settings2 className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="glass border-border">
+                  <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setViewMode("grid")}>
                       <Grid className="h-4 w-4 mr-2" /> Grid View
                     </DropdownMenuItem>
@@ -234,8 +250,8 @@ export default function Subscriptions() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 <Button
-                  variant="glow"
-                  className="gap-2 h-10 px-5 shadow-lg shadow-primary/20"
+                  variant="default"
+                  className="gap-2 h-10 px-4 bg-primary hover:bg-primary/90"
                   onClick={() => {
                     if (user?.plan === "free" && allSubscriptions.length >= 10) {
                       setIsUpgradeModalOpen(true);
@@ -256,16 +272,17 @@ export default function Subscriptions() {
                   }}
                 >
                   <Plus className="h-4 w-4" />
-                  <span className="font-semibold">Add Subscription</span>
+                  <span className="hidden sm:inline font-semibold">Add</span>
                 </Button>
               </div>
             </div>
 
+            {/* Dialog remains the same */}
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
               if (!open) setEditingSubscription(null);
             }}>
-              <DialogContent className="glass border-border sm:max-w-[425px]">
+              <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                   <DialogTitle>{editingSubscription ? "Edit Subscription" : "Add New Subscription"}</DialogTitle>
                   <DialogDescription>
@@ -328,7 +345,7 @@ export default function Subscriptions() {
                                   <SelectValue placeholder="Select cycle" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent className="glass border-border">
+                              <SelectContent>
                                 <SelectItem value="Monthly">Monthly</SelectItem>
                                 <SelectItem value="Yearly">Yearly</SelectItem>
                                 <SelectItem value="Weekly">Weekly</SelectItem>
@@ -353,8 +370,8 @@ export default function Subscriptions() {
                                   <SelectValue placeholder="USD" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent className="glass border-border">
-                                {['USD', 'EUR', 'GBP', 'CEDI', 'JPY', 'AUD', 'CAD', 'CHF', 'CNY', 'HKD', 'IDR', 'INR', 'KRW', 'MXN', 'MYR', 'NOK', 'NZD', 'PHP', 'PKR', 'PLN', 'RUB', 'SGD', 'THB', 'TRY', 'ZAR'].map((curr) => (
+                              <SelectContent>
+                                {['USD', 'EUR', 'GBP', 'CEDI', 'JPY', 'AUD', 'CAD'].map((curr) => (
                                   <SelectItem key={curr} value={curr}>{curr}</SelectItem>
                                 ))}
                               </SelectContent>
@@ -375,7 +392,7 @@ export default function Subscriptions() {
                                   <SelectValue placeholder="Active" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent className="glass border-border">
+                              <SelectContent>
                                 <SelectItem value="Active">Active</SelectItem>
                                 <SelectItem value="Suspended">Suspended</SelectItem>
                                 <SelectItem value="Cancelled">Cancelled</SelectItem>
@@ -400,7 +417,7 @@ export default function Subscriptions() {
                                   <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent className="glass border-border">
+                              <SelectContent>
                                 {categories.slice(1).map((cat) => (
                                   <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                                 ))}
@@ -422,7 +439,7 @@ export default function Subscriptions() {
                                   <Button
                                     variant={"outline"}
                                     className={cn(
-                                      "w-full pl-3 text-left font-normal h-10 bg-transparent border-input",
+                                      "w-full pl-3 text-left font-normal h-10",
                                       !field.value && "text-muted-foreground"
                                     )}
                                   >
@@ -435,7 +452,7 @@ export default function Subscriptions() {
                                   </Button>
                                 </FormControl>
                               </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0 glass border-border" align="start">
+                              <PopoverContent className="w-auto p-0" align="start">
                                 <Calendar
                                   mode="single"
                                   selected={new Date(field.value)}
@@ -453,7 +470,7 @@ export default function Subscriptions() {
                       />
                     </div>
                     <DialogFooter className="pt-4">
-                      <Button type="submit" className="w-full" variant="glow" disabled={createSubscription.isPending || updateSubscription.isPending}>
+                      <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={createSubscription.isPending || updateSubscription.isPending}>
                         {(createSubscription.isPending || updateSubscription.isPending) ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -472,38 +489,38 @@ export default function Subscriptions() {
 
           {/* Stats Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="glass rounded-xl p-4 animate-slide-in-left" style={{ animationDelay: "0ms" }}>
+            <div className="border border-border rounded-xl p-4 bg-card">
               <p className="text-sm text-muted-foreground">Active Subscriptions</p>
               <p className="text-2xl font-bold">{stats?.overview.active || 0}</p>
             </div>
-            <div className="glass rounded-xl p-4 animate-slide-in-left" style={{ animationDelay: "100ms" }}>
+            <div className="border border-border rounded-xl p-4 bg-card">
               <p className="text-sm text-muted-foreground">Monthly Spending</p>
               <p className="text-2xl font-bold text-primary">${(stats?.spending?.totalMonthly || 0).toFixed(2)}</p>
             </div>
-            <div className="glass rounded-xl p-4 animate-slide-in-left" style={{ animationDelay: "200ms" }}>
+            <div className="border border-border rounded-xl p-4 bg-card">
               <p className="text-sm text-muted-foreground">Yearly Projection</p>
               <p className="text-2xl font-bold">${(stats?.spending?.totalYearly || 0).toFixed(2)}</p>
             </div>
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
-            <div className="flex flex-1 gap-3">
-              <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
+            <div className="flex flex-col sm:flex-row flex-1 gap-3">
+              <div className="relative flex-1 sm:max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search subscriptions..."
-                  className="pl-10 h-10 bg-transparent border-input"
+                  className="pl-10 h-10"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-[160px] h-10 bg-transparent">
+                <SelectTrigger className="w-full sm:w-[160px] h-10">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="glass border-border">
+                <SelectContent>
                   {categories.map((cat) => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
@@ -518,38 +535,37 @@ export default function Subscriptions() {
               {filteredSubscriptions.map((sub, index) => (
                 <div
                   key={sub._id}
-                  className="glass rounded-xl p-4 transition-all duration-300 hover:glow-border opacity-0 animate-fade-in"
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  className="border border-border rounded-xl p-4 bg-card hover:border-primary/50 transition-colors"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 mb-4">
                     <div
-                      className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold"
+                      className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-xl font-bold shrink-0"
                       style={{ color: getColorForCategory(sub.category) }}
                     >
                       {sub.name.charAt(0)}
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{sub.name}</h3>
+                        <h3 className="font-semibold truncate">{sub.name}</h3>
                         <Badge
                           variant={sub.status.toLowerCase() === "active" ? "default" : "secondary"}
-                          className="text-xs"
+                          className="text-xs shrink-0"
                         >
                           {sub.status}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{sub.category}</p>
+                      <p className="text-sm text-muted-foreground truncate">{sub.category}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <div className="flex items-center justify-between pt-4 border-t border-border">
                     <div>
                       <p className="text-lg font-bold text-primary">${sub.price}</p>
                       <p className="text-xs text-muted-foreground">/{sub.frequency}</p>
                     </div>
-                    <div>
+                    <div className="text-right">
                       <p className="text-sm">Next billing</p>
-                      <p className="text-sm text-muted-foreground">{sub.renewalDate ? format(new Date(sub.renewalDate), "MMM d, yyyy") : "N/A"}</p>
+                      <p className="text-sm text-muted-foreground">{sub.renewalDate ? format(new Date(sub.renewalDate), "MMM d") : "N/A"}</p>
                     </div>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -557,7 +573,7 @@ export default function Subscriptions() {
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="glass border-border">
+                      <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEdit(sub)}>
                           <Edit className="h-4 w-4 mr-2" /> Edit
                         </DropdownMenuItem>
