@@ -1,4 +1,4 @@
-// components/ai/AIChat.tsx - Enhanced Version with Form Integration
+// components/ai/AiChat.tsx - Enhanced Version with Form Integration
 
 import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
@@ -11,17 +11,43 @@ import api from "@/lib/axios";
 import { useNavigate } from "react-router-dom";
 import { SubscriptionFormDialog } from "./SubscriptionFormDialog";
 
+interface ActionParameters {
+  prefillData?: Record<string, unknown>;
+  subscription?: Record<string, unknown>;
+  subscriptionId?: string;
+  [key: string]: unknown;
+}
+
+interface MessageAction {
+  type: string;
+  parameters: ActionParameters;
+  needsConfirmation?: boolean;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
-  action?: {
-    type: string;
-    parameters: any;
-    needsConfirmation?: boolean;
+  action?: MessageAction;
+}
+
+interface AIResponse {
+  message: string;
+  responseType: string;
+  action?: string;
+  parameters?: ActionParameters;
+  needsConfirmation?: boolean;
+}
+
+interface ErrorResponse {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
   };
 }
 
-export function AIChat() {
+export function AiChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -37,7 +63,7 @@ export function AIChat() {
   // Form state
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "update">("create");
-  const [formData, setFormData] = useState<any>(null);
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -57,7 +83,7 @@ export function AIChat() {
     setIsLoading(true);
 
     try {
-      const response = await api.post("/ai/chat", {
+      const response = await api.post<{ data: AIResponse }>("/ai/chat", {
         message: userMessage,
         conversationHistory: messages.map((m) => ({
           role: m.role,
@@ -73,8 +99,8 @@ export function AIChat() {
           role: "assistant",
           content: aiResponse.message,
           action: aiResponse.responseType === "action" ? {
-            type: aiResponse.action,
-            parameters: aiResponse.parameters,
+            type: aiResponse.action || "",
+            parameters: aiResponse.parameters || {},
             needsConfirmation: aiResponse.needsConfirmation,
           } : undefined,
         },
@@ -84,7 +110,9 @@ export function AIChat() {
       if (aiResponse.responseType === "action") {
         handleAIAction(aiResponse);
       }
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ErrorResponse;
+      
       if (error.response?.status === 401) {
         toast({
           title: "Session Expired",
@@ -113,7 +141,7 @@ export function AIChat() {
     }
   };
 
-  const handleAIAction = (aiResponse: any) => {
+  const handleAIAction = (aiResponse: AIResponse) => {
     const { action, parameters } = aiResponse;
 
     switch (action) {
@@ -135,9 +163,9 @@ export function AIChat() {
     }
   };
 
-  const handleExecuteAction = async (action: any) => {
+  const handleExecuteAction = async (action: MessageAction) => {
     try {
-      const response = await api.post("/ai/execute-action", {
+      const response = await api.post<{ message: string }>("/ai/execute-action", {
         action: action.type,
         parameters: action.parameters,
       });
@@ -159,7 +187,9 @@ export function AIChat() {
       if (action.type === "delete_subscription") {
         window.location.reload(); // Or use your state management
       }
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ErrorResponse;
+      
       if (error.response?.status === 401) {
         toast({
           title: "Session Expired",
@@ -235,7 +265,7 @@ export function AIChat() {
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      onClick={() => handleExecuteAction(message.action)}
+                      onClick={() => handleExecuteAction(message.action!)}
                       className="flex items-center gap-2"
                     >
                       <Check className="h-4 w-4" />
