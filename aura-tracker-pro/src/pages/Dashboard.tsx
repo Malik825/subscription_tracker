@@ -7,6 +7,7 @@ import { UpcomingRenewals } from "@/components/UpcomingRenewals";
 import { CreditCard, TrendingUp, Calendar, AlertTriangle, Database } from "lucide-react";
 import { useSubscriptions, useSeedSubscriptions, useSubscriptionStats } from "@/hooks/useSubscriptions";
 import { useAuth } from "@/hooks/useAuth";
+import { useOutletContext } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const { data: stats, isLoading: isLoadingStats } = useSubscriptionStats();
   const { mutate: seed, isPending: isSeeding } = useSeedSubscriptions();
   const { user } = useAuth();
+  const { onUpgradeClick } = useOutletContext<{ onUpgradeClick: () => void }>();
 
   console.log("Dashboard - User:", user);
   console.log("Dashboard - Subscriptions:", subscriptions);
@@ -31,7 +33,7 @@ export default function Dashboard() {
     : [];
 
   const monthlySpendingData = [
-    { month: "Jan", amount: 245 }, // Needs backend support for historical data, using mock for graph shape
+    { month: "Jan", amount: 245 },
     { month: "Feb", amount: 268 },
     { month: "Mar", amount: 284 },
     { month: "Apr", amount: 276 },
@@ -53,7 +55,7 @@ export default function Dashboard() {
     ...r,
     amount: r.price,
     date: r.renewalDate ? format(new Date(r.renewalDate), "MMM d") : "N/A",
-    color: getColorForCategory("Subscription") // Or derive from sub
+    color: getColorForCategory("Subscription")
   })) || [];
 
 
@@ -66,15 +68,16 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen aura-bg">
-      <div className="p-8">
-        <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-background">
+      <div className="p-4 md:p-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <DashboardHeader
             title="Dashboard"
             subtitle="Track and manage all your subscriptions"
+            onUpgradeClick={onUpgradeClick}
           />
           {!isLoadingSubs && allSubscriptions.length === 0 && (
-            <Button onClick={() => seed()} disabled={isSeeding} variant="outline" className="gap-2">
+            <Button onClick={() => seed()} disabled={isSeeding} variant="outline" className="gap-2 w-full sm:w-auto">
               {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
               Seed Data
             </Button>
@@ -82,11 +85,11 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6 md:mb-8">
           <StatCard
             title="Total Monthly"
             value={`$${(stats?.spending?.totalMonthly || 0).toFixed(2)}`}
-            change={{ value: 0, type: "increase" }} // Needs historical comparison
+            change={{ value: 0, type: "increase" }}
             icon={CreditCard}
             delay={100}
           />
@@ -107,20 +110,20 @@ export default function Dashboard() {
           <StatCard
             title="Potential Savings"
             value={`$${(stats?.spending?.totalYearly || 0).toFixed(2)}`}
-            description="Total Yearly Cost" // Changed meaning slightly for now
+            description="Total Yearly Cost"
             icon={AlertTriangle}
             delay={400}
           />
         </div>
 
         {/* Charts Row */}
-        <div className="grid gap-6 lg:grid-cols-3 mb-8">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3 mb-6 md:mb-8">
           <SpendingChart className="lg:col-span-2" data={monthlySpendingData} />
           <CategoryBreakdown data={spendingData} />
         </div>
 
         {/* Subscriptions and Renewals */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between opacity-0 animate-fade-in animation-delay-300">
               <h3 className="text-lg font-semibold">Recent Subscriptions</h3>

@@ -3,7 +3,12 @@ import animate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
   prefix: "",
   theme: {
     container: {
@@ -15,7 +20,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Poppins', 'system-ui', 'sans-serif'],
+        sans: ["Poppins", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -113,7 +118,7 @@ export default {
           "0%, 100%": { opacity: "0.5" },
           "50%": { opacity: "1" },
         },
-        "float": {
+        float: {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-10px)" },
         },
@@ -131,12 +136,13 @@ export default {
         "slide-in-left": "slide-in-left 0.4s ease-out forwards",
         "slide-in-right": "slide-in-right 0.4s ease-out forwards",
         "pulse-glow": "pulse-glow 3s ease-in-out infinite",
-        "float": "float 6s ease-in-out infinite",
+        float: "float 6s ease-in-out infinite",
         shimmer: "shimmer 2s linear infinite",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "shimmer": "linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent)",
+        shimmer:
+          "linear-gradient(90deg, transparent, hsl(var(--primary) / 0.1), transparent)",
       },
     },
   },
