@@ -27,6 +27,7 @@ import { useDispatch } from "react-redux";
 import { AppDispatch } from "./store";
 import { checkAuth } from "./features/auth/authSlice";
 import { useEffect } from "react";
+import AIAssistant from "./pages/AIAssistant";
 
 const AuthLoader = ({ children }: { children: React.ReactNode }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -53,6 +54,8 @@ const App = () => (
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                // Add to App.tsx routes
+<Route path="/ai-assistant" element={<AIAssistant />} />
                 <Route element={<DashboardLayout />}>
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/subscriptions" element={<Subscriptions />} />
