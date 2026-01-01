@@ -12,6 +12,7 @@ import {
   Bell,
   LogOut,
   Zap,
+  Sparkles, // ADD THIS
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,17 @@ const navItems = [
   { icon: Calendar, label: "Calendar", path: "/calendar" },
   { icon: Bell, label: "Notifications", path: "/notifications" },
   { icon: Settings, label: "Settings", path: "/settings" },
+];
+
+// ADD THIS - AI Features navigation
+const aiItems = [
+  { 
+    icon: Sparkles, 
+    label: "AI Assistant", 
+    path: "/ai-assistant",
+    badge: "New",
+    isNew: true 
+  },
 ];
 
 interface SidebarProps {
@@ -63,7 +75,67 @@ export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
+        {/* AI Features Section - ADD THIS */}
+        {!collapsed && (
+          <div className="pb-2 opacity-0 animate-fade-in">
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              AI Features
+            </p>
+          </div>
+        )}
+        
+        {aiItems.map((item, index) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={cn(
+                "flex items-center rounded-lg py-2.5 text-sm font-medium transition-all duration-200 opacity-0 animate-slide-in-left relative group",
+                collapsed ? "justify-center px-0" : "gap-3 px-3",
+                isActive
+                  ? "bg-gradient-to-r from-violet-500/20 to-purple-500/20 text-violet-400 glow-border border-violet-500/30"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-violet-500/20"
+              )}
+              style={{ animationDelay: `${index * 50}ms` }}
+              title={collapsed ? item.label : undefined}
+            >
+              <item.icon className={cn(
+                "h-5 w-5 shrink-0",
+                isActive && "text-violet-400"
+              )} />
+              {!collapsed && (
+                <>
+                  <span className="truncate animate-fade-in flex-1">{item.label}</span>
+                  {item.badge && (
+                    <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-semibold text-white animate-pulse">
+                      {item.badge}
+                    </span>
+                  )}
+                </>
+              )}
+              {collapsed && item.badge && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-violet-500 animate-pulse" />
+              )}
+            </NavLink>
+          );
+        })}
+
+        {/* Divider */}
+        <div className="py-2">
+          <div className="border-t border-border" />
+        </div>
+
+        {/* Main Navigation Section */}
+        {!collapsed && (
+          <div className="pb-2 opacity-0 animate-fade-in" style={{ animationDelay: "100ms" }}>
+            <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Main
+            </p>
+          </div>
+        )}
+
         {navItems.map((item, index) => {
           const isActive = location.pathname === item.path;
           return (
@@ -77,7 +149,7 @@ export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
                   ? "bg-primary/10 text-primary glow-border"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
-              style={{ animationDelay: `${index * 50}ms` }}
+              style={{ animationDelay: `${(index + 2) * 50}ms` }}
               title={collapsed ? item.label : undefined}
             >
               <item.icon className="h-5 w-5 shrink-0" />
