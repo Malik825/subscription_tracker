@@ -33,13 +33,25 @@ import api from "@/lib/axios";
 import { useToast } from "@/hooks/use-toast";
 import { SubscriptionInput, subscriptionSchema } from "@/schemas/subscriptionSchema";
 
+interface SubscriptionWithId extends SubscriptionInput {
+  _id?: string;
+}
+
 interface SubscriptionFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "update";
-  initialData?: Partial<SubscriptionInput> & { _id?: string };
-  isExtracted?: boolean; // New prop to show if data was AI-extracted
+  initialData?: Partial<SubscriptionWithId>;
+  isExtracted?: boolean;
   onSuccess: (message: string) => void;
+}
+
+interface ErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
 }
 
 const currencies = [
@@ -118,7 +130,7 @@ export function SubscriptionFormDialog({
         await api.post("/subscriptions", data);
         onSuccess("✅ Subscription added successfully!");
       } else {
-        const id = (initialData as any)?._id;
+        const id = (initialData as SubscriptionWithId)?._id;
         if (!id) throw new Error("No subscription ID provided");
         
         await api.put(`/subscriptions/${id}`, data);
@@ -127,7 +139,9 @@ export function SubscriptionFormDialog({
       
       onOpenChange(false);
       form.reset();
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ErrorResponse;
+      
       toast({
         title: "Error",
         description: error.response?.data?.message || `Failed to ${mode} subscription`,
@@ -283,7 +297,13 @@ export function SubscriptionFormDialog({
                   <FormItem>
                     <FormLabel>Start Date *</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input 
+                        type="date" 
+                        {...field}
+                        value={field.value instanceof Date 
+                          ? field.value.toISOString().split("T")[0] 
+                          : field.value || ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -297,7 +317,13 @@ export function SubscriptionFormDialog({
                   <FormItem>
                     <FormLabel>Next Renewal Date</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} value={field.value || ""} />
+                      <Input 
+                        type="date" 
+                        {...field}
+                        value={field.value instanceof Date 
+                          ? field.value.toISOString().split("T")[0] 
+                          : field.value || ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,14 +6,31 @@ import { Label } from "@/components/ui/label";
 import { Upload, Loader2, CheckCircle, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import api from "@/lib/axios"; // USE YOUR EXISTING AXIOS INSTANCE
+import api from "@/lib/axios";
 import { useNavigate } from "react-router-dom";
+
+interface ExtractedData {
+  name: string;
+  amount: number;
+  currency: string;
+  billingCycle: string;
+  category: string;
+}
+
+interface ErrorResponse {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+    };
+  };
+}
 
 export function ReceiptScanner() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [extractedData, setExtractedData] = useState<any>(null);
+  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -41,8 +57,7 @@ export function ReceiptScanner() {
       const formData = new FormData();
       formData.append("receipt", file);
 
-      // USE AXIOS WITH FORM DATA (cookies included automatically)
-      const response = await api.post("/ai/scan-receipt", formData, {
+      const response = await api.post<{ data: ExtractedData }>("/ai/scan-receipt", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
@@ -53,7 +68,9 @@ export function ReceiptScanner() {
         title: "Receipt scanned!",
         description: "Review the extracted data and save if correct.",
       });
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ErrorResponse;
+      
       if (error.response?.status === 401) {
         toast({
           title: "Session Expired",
@@ -78,7 +95,7 @@ export function ReceiptScanner() {
     if (!extractedData) return;
 
     try {
-      const response = await api.post("/ai/create-from-receipt", { 
+      const response = await api.post<{ data: { name: string } }>("/ai/create-from-receipt", { 
         extractedData 
       });
 
@@ -90,7 +107,9 @@ export function ReceiptScanner() {
       setFile(null);
       setPreview(null);
       setExtractedData(null);
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ErrorResponse;
+      
       if (error.response?.status === 401) {
         toast({
           title: "Session Expired",
