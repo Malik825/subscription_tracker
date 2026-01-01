@@ -70,19 +70,26 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Main wrapper for 90% width on mobile */}
-      <div className="w-[90%] md:w-full mx-auto p-4 md:p-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+      <div className="w-[90%] md:w-full mx-auto p-4 md:p-8 max-w-full overflow-x-hidden">
+        {/* Header with Seed Button */}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+            <div className="w-full">
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight mb-1">Dashboard</h1>
+              <p className="text-muted-foreground text-xs md:text-sm">Track and manage all your subscriptions</p>
+            </div>
+            {!isLoadingSubs && allSubscriptions.length === 0 && (
+              <Button onClick={() => seed()} disabled={isSeeding} variant="outline" className="gap-2 w-full sm:w-auto shrink-0">
+                {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                Seed Data
+              </Button>
+            )}
+          </div>
+          
           <DashboardHeader
-            title="Dashboard"
-            subtitle="Track and manage all your subscriptions"
+            title=""
             onUpgradeClick={onUpgradeClick}
           />
-          {!isLoadingSubs && allSubscriptions.length === 0 && (
-            <Button onClick={() => seed()} disabled={isSeeding} variant="outline" className="gap-2 w-full sm:w-auto">
-              {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-              Seed Data
-            </Button>
-          )}
         </div>
 
         {/* Stats Grid */}
@@ -119,13 +126,17 @@ export default function Dashboard() {
 
         {/* Charts Row */}
         <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3 mb-6 md:mb-8">
-          <SpendingChart className="lg:col-span-2" data={monthlySpendingData} />
-          <CategoryBreakdown data={spendingData} />
+          <div className="lg:col-span-2 min-w-0">
+            <SpendingChart data={monthlySpendingData} />
+          </div>
+          <div className="min-w-0">
+            <CategoryBreakdown data={spendingData} />
+          </div>
         </div>
 
         {/* Subscriptions and Renewals */}
         <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-4 min-w-0">
             <div className="flex items-center justify-between opacity-0 animate-fade-in animation-delay-300">
               <h3 className="text-lg font-semibold">Recent Subscriptions</h3>
               <a
@@ -153,7 +164,9 @@ export default function Dashboard() {
               </div>
             )}
           </div>
-          <UpcomingRenewals renewals={upcomingRenewals} />
+          <div className="min-w-0">
+            <UpcomingRenewals renewals={upcomingRenewals} />
+          </div>
         </div>
       </div>
     </div>
