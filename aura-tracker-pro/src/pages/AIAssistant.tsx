@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sparkles, ScanLine } from "lucide-react";
 import { ReceiptScanner } from "@/components/ai/ReceiptScanner";
-import { AIChat } from "@/components/ai/AiChat";
+import { AiChat } from "@/components/ai/AiChat";
 
 export default function AIAssistant() {
   return (
@@ -39,7 +39,7 @@ export default function AIAssistant() {
           </TabsList>
 
           <TabsContent value="chat" className="mt-6">
-            <AIChat />
+            <AiChat />
           </TabsContent>
 
           <TabsContent value="scanner" className="mt-6">
