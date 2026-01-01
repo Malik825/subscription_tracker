@@ -37,7 +37,7 @@ export const registerUser = async (req, res, next) => {
           password: hashePassword,
           verificationToken,
           verificationTokenExpiresAt,
-          isVerified: false, // Must verify via email in all environments
+          isVerified: false,
         },
       ],
       { session }
@@ -53,7 +53,7 @@ export const registerUser = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message:
-        "User created successfully. Please check your email to verify your account.",
+        "User created successfully. Please check your email (including spam folder) to verify your account.",
       data: {
         user: newUser[0],
       },
@@ -81,7 +81,6 @@ export const loginUser = async (req, res, next) => {
       throw error;
     }
 
-    // Only check verification in production
     if (NODE_ENV === "production" && !user.isVerified) {
       const error = new Error("Please verify your email to login");
       error.statusCode = 403;
@@ -131,9 +130,22 @@ export const verifyEmail = async (req, res, next) => {
     user.verificationTokenExpiresAt = undefined;
     await user.save();
 
+    // Auto-login: Generate JWT token
+    const jwtToken = jwt.sign({ userId: user._id }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+
+    // Set authentication cookie
+    res.cookie("token", jwtToken, {
+      httpOnly: true,
+      secure: NODE_ENV === "production",
+      sameSite: NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
     res.status(200).json({
       success: true,
-      message: "Email verified successfully",
+      message: "Email verified successfully! You are now logged in.",
       data: {
         user,
       },
@@ -187,7 +199,6 @@ export const forgotPassword = async (req, res, next) => {
     user.resetPasswordTokenExpiresAt = otpExpiresAt;
     await user.save();
 
-    // Send password reset email asynchronously
     sendPasswordResetEmail(email, otp).catch((error) => {
       console.error("Error sending password reset email:", error);
     });
