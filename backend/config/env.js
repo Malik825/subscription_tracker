@@ -21,4 +21,5 @@ export const {
   PAYSTACK_SECRET_KEY,
   PAYSTACK_PLAN_CODE,
   SENDGRID_API_KEY,
+  GROQ_API_KEY,
 } = process.env;
