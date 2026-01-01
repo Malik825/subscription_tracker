@@ -16,12 +16,12 @@ export const sendVerificationEmail = async (email, verificationToken) => {
   try {
     console.log(`[RESEND] Sending verification email to ${email}`);
 
-    const clientUrl = FRONTEND_URL || "http://localhost:8080";
+    const clientUrl = FRONTEND_URL || "http://localhost:5173";
     const verificationLink = `${clientUrl}/verify-email?token=${verificationToken}`;
 
     console.log(`[RESEND] Verification link: ${verificationLink}`);
 
-    const data = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Verify Your Email - SubDub",
@@ -38,15 +38,22 @@ export const sendVerificationEmail = async (email, verificationToken) => {
       `,
     });
 
+    if (error) {
+      console.error("[RESEND] ❌ API returned error:", error);
+      throw error;
+    }
+
     console.log(
-      `[RESEND] ✅ Verification email sent successfully. Email ID: ${data.id}`
+      `[RESEND] ✅ Verification email sent successfully. Email ID: ${data?.id}`
     );
+    console.log(`[RESEND] Full response:`, data);
     return data;
   } catch (error) {
     console.error(
       "[RESEND] ❌ Failed to send verification email:",
       error.message
     );
+    console.error("[RESEND] Error stack:", error.stack);
     throw new Error("Could not send verification email");
   }
 };
@@ -55,7 +62,7 @@ export const sendPasswordResetEmail = async (email, otp) => {
   try {
     console.log(`[RESEND] Sending password reset email to ${email}`);
 
-    const data = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Password Reset OTP - SubDub",
@@ -72,15 +79,22 @@ export const sendPasswordResetEmail = async (email, otp) => {
       `,
     });
 
+    if (error) {
+      console.error("[RESEND] ❌ API returned error:", error);
+      throw error;
+    }
+
     console.log(
-      `[RESEND] ✅ Password reset email sent successfully. Email ID: ${data.id}`
+      `[RESEND] ✅ Password reset email sent successfully. Email ID: ${data?.id}`
     );
+    console.log(`[RESEND] Full response:`, data);
     return data;
   } catch (error) {
     console.error(
       "[RESEND] ❌ Failed to send password reset email:",
       error.message
     );
+    console.error("[RESEND] Error stack:", error.stack);
     throw new Error("Could not send password reset email");
   }
 };
