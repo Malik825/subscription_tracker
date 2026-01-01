@@ -69,7 +69,8 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="p-4 md:p-8">
+      {/* Main wrapper for 90% width on mobile */}
+      <div className="w-[90%] md:w-full mx-auto p-4 md:p-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <DashboardHeader
             title="Dashboard"

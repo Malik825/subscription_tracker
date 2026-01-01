@@ -8,56 +8,56 @@ export const Hero = () => {
   const { isAuthenticated } = useAuth();
 
   return (
-    <section className="relative pt-32 pb-20 px-6 overflow-hidden">
+    <section className="relative pt-20 md:pt-32 pb-12 md:pb-20 md:px-6 overflow-hidden">
       {/* Background decoration */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-primary/20 rounded-full blur-[120px] -z-10 opacity-50 pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] md:w-[1000px] h-[400px] md:h-[600px] bg-primary/20 rounded-full blur-[120px] -z-10 opacity-50 pointer-events-none" />
 
-      <div className="container mx-auto grid lg:grid-cols-2 gap-12 items-center">
+      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-8 md:gap-12 items-center">
 
         {/* Left Column: Content */}
         <div className="text-center lg:text-left z-10">
-          <div className="inline-flex items-center gap-2 glass px-4 py-2 rounded-full mb-8 opacity-0 animate-fade-in">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium">
+          <div className="inline-flex items-center gap-2 glass px-3 md:px-4 py-1.5 md:py-2 rounded-full mb-6 md:mb-8 opacity-0 animate-fade-in">
+            <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary" />
+            <span className="text-xs md:text-sm font-medium">
               Now with AI-powered personalized insights
             </span>
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-bold leading-tight mb-6 opacity-0 animate-fade-in-up animation-delay-100">
+          <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold leading-tight mb-4 md:mb-6 opacity-0 animate-fade-in-up animation-delay-100">
             Master Your <br />
             <span className="gradient-text">Subscriptions</span>
           </h1>
 
-          <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto lg:mx-0 opacity-0 animate-fade-in-up animation-delay-200">
+          <p className="text-base md:text-lg lg:text-xl text-muted-foreground mb-6 md:mb-10 max-w-2xl mx-auto lg:mx-0 opacity-0 animate-fade-in-up animation-delay-200">
             Stop losing money on forgotten trials. Track, manage, and optimize all your recurring payments in one beautiful, intelligent dashboard.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start opacity-0 animate-fade-in-up animation-delay-300">
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center lg:justify-start opacity-0 animate-fade-in-up animation-delay-300">
             {isAuthenticated ? (
               <>
-                <Link to="/dashboard">
-                  <Button variant="glow" size="xl" className="w-full sm:w-auto">
+                <Link to="/dashboard" className="w-full sm:w-auto">
+                  <Button variant="glow" size="xl" className="w-full h-11 md:h-12 text-sm md:text-base">
                     Go to Dashboard
-                    <ArrowRight className="h-5 w-5 ml-2" />
+                    <ArrowRight className="h-4 w-4 md:h-5 md:w-5 ml-2" />
                   </Button>
                 </Link>
-                <Link to="/subscriptions">
-                  <Button variant="outline" size="xl" className="w-full sm:w-auto">
-                    <Plus className="h-5 w-5 mr-2" />
+                <Link to="/subscriptions" className="w-full sm:w-auto">
+                  <Button variant="outline" size="xl" className="w-full h-11 md:h-12 text-sm md:text-base">
+                    <Plus className="h-4 w-4 md:h-5 md:w-5 mr-2" />
                     Add Subscription
                   </Button>
                 </Link>
               </>
             ) : (
               <>
-                <Link to="/auth">
-                  <Button variant="glow" size="xl" className="w-full sm:w-auto">
+                <Link to="/auth" className="w-full sm:w-auto">
+                  <Button variant="glow" size="xl" className="w-full h-11 md:h-12 text-sm md:text-base">
                     Start Free Trial
-                    <ArrowRight className="h-5 w-5 ml-2" />
+                    <ArrowRight className="h-4 w-4 md:h-5 md:w-5 ml-2" />
                   </Button>
                 </Link>
-                <Link to="/dashboard">
-                  <Button variant="outline" size="xl" className="w-full sm:w-auto">
+                <Link to="/dashboard" className="w-full sm:w-auto">
+                  <Button variant="outline" size="xl" className="w-full h-11 md:h-12 text-sm md:text-base">
                     Explore Dashboard
                   </Button>
                 </Link>
@@ -65,17 +65,17 @@ export const Hero = () => {
             )}
           </div>
 
-          <div className="mt-12 flex items-center justify-center lg:justify-start gap-8 opacity-0 animate-fade-in-up animation-delay-400">
-            <div className="flex -space-x-4">
+          <div className="mt-8 md:mt-12 flex items-center justify-center lg:justify-start gap-6 md:gap-8 opacity-0 animate-fade-in-up animation-delay-400">
+            <div className="flex -space-x-3 md:-space-x-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="w-10 h-10 rounded-full border-2 border-background bg-zinc-800 flex items-center justify-center text-xs font-bold text-white">
+                <div key={i} className="w-8 h-8 md:w-10 md:h-10 rounded-full border-2 border-background bg-zinc-800 flex items-center justify-center text-xs font-bold text-white">
                   {i === 4 ? "+2k" : ""}
                 </div>
               ))}
             </div>
             <div>
-              <p className="font-bold text-lg">10,000+</p>
-              <p className="text-sm text-muted-foreground">Active Users</p>
+              <p className="font-bold text-base md:text-lg">10,000+</p>
+              <p className="text-xs md:text-sm text-muted-foreground">Active Users</p>
             </div>
           </div>
         </div>
