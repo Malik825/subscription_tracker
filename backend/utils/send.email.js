@@ -10,13 +10,11 @@ if (!RESEND_API_KEY) {
 }
 
 const resend = new Resend(RESEND_API_KEY);
-
 const FROM_EMAIL = "onboarding@resend.dev";
 
 export const sendReminderEmail = async ({ to, type, subscription }) => {
   try {
-    // Log entry point
-    console.log(`[EMAIL] Attempting to send ${type} email to ${to}`);
+    console.log(`[EMAIL-REMINDER] Attempting to send ${type} email to ${to}`);
 
     if (!to || !type) {
       throw new Error("Missing required parameters: to and type are required");
@@ -39,27 +37,32 @@ export const sendReminderEmail = async ({ to, type, subscription }) => {
       planName: subscription.name,
       price: `${subscription.currency} ${subscription.price} (${subscription.frequency})`,
       paymentMethod: subscription.paymentMethod,
-      accountSettingsLink: "https://yourapp.com/settings",
-      supportLink: "https://yourapp.com/support",
+      accountSettingsLink:
+        "https://subscription-tracker-lovat.vercel.app/settings",
+      supportLink: "https://subscription-tracker-lovat.vercel.app/support",
     };
 
     const message = template.generateBody(mailInfo);
     const subject = template.generateSubject(mailInfo);
 
-    console.log(`[EMAIL] Sending with subject: ${subject}`);
+    console.log(`[EMAIL-REMINDER] Sending with subject: ${subject}`);
 
-    const data = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: to,
       subject: subject,
       html: message,
     });
 
-    console.log(`[EMAIL] Success! Email ID: ${data.id}`);
+    if (error) {
+      console.error("[EMAIL-REMINDER] ❌ API returned error:", error);
+      throw error;
+    }
+
+    console.log(`[EMAIL-REMINDER] ✅ Success! Email ID: ${data?.id}`);
     return data;
   } catch (error) {
-    console.error(`[EMAIL] Failed to send email:`, error.message);
-    console.error(`[EMAIL] Error details:`, error);
+    console.error(`[EMAIL-REMINDER] ❌ Failed:`, error.message);
     throw error;
   }
 };
