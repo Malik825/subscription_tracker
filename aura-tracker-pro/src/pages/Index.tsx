@@ -1,13 +1,12 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { Navbar } from "@/components/Navbar";
 import {
   Zap,
   TrendingUp,
   Bell,
   PieChart,
   Shield,
-  Sparkles,
   ArrowRight,
   Check,
 } from "lucide-react";
@@ -91,58 +90,37 @@ const pricingPlans = [
 
 export default function Index() {
   return (
-    <div className="min-h-screen aura-bg">
+    <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary glow-primary">
-              <Zap className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold gradient-text">SubTrack</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <Link to="/auth">
-              <Button variant="ghost">Sign In</Button>
-            </Link>
-            <Link to="/auth">
-              <Button variant="glow">Get Started</Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Hero Section */}
       <Hero />
 
       {/* Features Section */}
-      <section className="py-20 px-6">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+      <section className="py-12 md:py-20 px-4 md:px-6">
+        <div className="container mx-auto max-w-[95rem]">
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4 px-4">
               Everything you need to{" "}
-              <span className="gradient-text">save money</span>
+              <span className="text-primary">save money</span>
             </h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto px-4">
               Powerful features designed to give you complete control over your
               subscriptions
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
             {features.map((feature, index) => (
               <div
                 key={feature.title}
-                className={cn(
-                  "stat-card glass glass-hover p-6 opacity-0 animate-fade-in-up"
-                )}
-                style={{ animationDelay: `${index * 100}ms` }}
+                className="border border-border rounded-xl p-5 md:p-6 hover:border-primary/50 transition-colors bg-card"
               >
-                <div className="rounded-xl bg-primary/10 p-3 w-fit mb-4">
-                  <feature.icon className="h-6 w-6 text-primary" />
+                <div className="rounded-xl bg-primary/10 p-2.5 md:p-3 w-fit mb-3 md:mb-4">
+                  <feature.icon className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="text-base md:text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
                   {feature.description}
                 </p>
               </div>
@@ -152,59 +130,58 @@ export default function Index() {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-24 px-6 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/20 blur-[120px] rounded-full -z-10" />
-        <div className="container mx-auto">
-          <div className="text-center mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
+      <section className="py-12 md:py-24 px-4 md:px-6 mb-20 md:mb-0">
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 tracking-tight px-4">
               Simple, transparent{" "}
-              <span className="gradient-text">pricing</span>
+              <span className="text-primary">pricing</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            <p className="text-sm md:text-base lg:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
               Choose the plan that fits your needs. Scale your subscription management without hidden fees.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
             {pricingPlans.map((plan, index) => (
               <div
                 key={plan.name}
                 className={cn(
-                  "relative group transition-all duration-500",
-                  "stat-card glass-premium rounded-[2.5rem] p-10 opacity-0 animate-fade-in-up overflow-visible",
-                  plan.popular ? "scale-105 z-10 glow-border-primary ring-1 ring-primary/20 bg-background/40" : "hover:scale-[1.02] bg-background/20"
+                  "relative rounded-2xl p-6 md:p-10 border",
+                  plan.popular 
+                    ? "border-primary bg-primary/5 md:scale-105 shadow-lg shadow-primary/10" 
+                    : "border-border bg-card hover:border-primary/50 transition-colors"
                 )}
-                style={{ animationDelay: `${index * 150}ms` }}
               >
                 {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-1.5 bg-primary text-primary-foreground text-sm font-bold rounded-full shadow-lg shadow-primary/20 uppercase tracking-wider">
+                  <div className="absolute -top-3 md:-top-4 left-1/2 -translate-x-1/2 px-4 md:px-6 py-1 md:py-1.5 bg-primary text-primary-foreground text-xs md:text-sm font-bold rounded-full">
                     Most Popular
                   </div>
                 )}
 
-                <div className="mb-10 text-center">
-                  <span className="text-sm font-bold uppercase tracking-[0.2em] text-primary mb-4 block">
+                <div className="mb-8 md:mb-10 text-center">
+                  <span className="text-xs md:text-sm font-bold uppercase tracking-wider text-primary mb-3 md:mb-4 block">
                     {plan.name}
                   </span>
-                  <div className="flex items-baseline justify-center gap-1.5 mb-4">
-                    <span className="text-5xl font-extrabold tracking-tight">{plan.price}</span>
+                  <div className="flex items-baseline justify-center gap-1 md:gap-1.5 mb-3 md:mb-4">
+                    <span className="text-4xl md:text-5xl font-extrabold tracking-tight">{plan.price}</span>
                     {plan.period && (
-                      <span className="text-muted-foreground font-medium">{plan.period}</span>
+                      <span className="text-sm md:text-base text-muted-foreground font-medium">{plan.period}</span>
                     )}
                   </div>
-                  <p className="text-muted-foreground font-medium leading-relaxed">
+                  <p className="text-sm md:text-base text-muted-foreground font-medium leading-relaxed px-2">
                     {plan.description}
                   </p>
                 </div>
 
-                <div className="h-px w-full bg-gradient-to-r from-transparent via-border to-transparent mb-10" />
+                <div className="h-px w-full bg-border mb-6 md:mb-10" />
 
-                <ul className="space-y-5 mb-12">
+                <ul className="space-y-3 md:space-y-5 mb-8 md:mb-12">
                   {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-4 group/item">
-                      <div className="mt-1 rounded-full bg-primary/20 p-1 group-hover/item:bg-primary/30 transition-colors">
-                        <Check className="h-3 w-3 text-primary" />
+                    <li key={feature} className="flex items-start gap-3 md:gap-4">
+                      <div className="mt-0.5 md:mt-1 rounded-full bg-primary/20 p-1 shrink-0">
+                        <Check className="h-2.5 w-2.5 md:h-3 md:w-3 text-primary" />
                       </div>
-                      <span className="text-[15px] font-medium text-foreground/80 group-hover/item:text-foreground transition-colors leading-tight">
+                      <span className="text-sm md:text-[15px] font-medium text-foreground/80 leading-snug">
                         {feature}
                       </span>
                     </li>
@@ -213,11 +190,11 @@ export default function Index() {
 
                 <Link to="/auth" className="w-full">
                   <Button
-                    variant={plan.popular ? "glow" : "outline"}
-                    size="xl"
+                    variant={plan.popular ? "default" : "outline"}
+                    size="lg"
                     className={cn(
-                      "w-full rounded-2xl h-14 text-base font-bold transition-all duration-300",
-                      !plan.popular && "hover:bg-primary/10 hover:border-primary/30"
+                      "w-full rounded-xl h-11 md:h-12 text-sm md:text-base font-semibold",
+                      plan.popular && "bg-primary hover:bg-primary/90"
                     )}
                   >
                     {plan.cta}
@@ -230,40 +207,37 @@ export default function Index() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-6">
-        <div className="container mx-auto">
-          <div className="glass rounded-3xl p-12 text-center relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-glow-secondary/10" />
-            <div className="relative z-10">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Ready to take control?
-              </h2>
-              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-                Join thousands of users who are already saving money with
-                SubTrack. Start your free trial today.
-              </p>
-              <Link to="/auth">
-                <Button variant="glow" size="xl">
-                  Start Free Trial
-                  <ArrowRight className="h-5 w-5 ml-2" />
-                </Button>
-              </Link>
-            </div>
+      <section className="py-12 md:py-20 px-4 md:px-6 mb-20 md:mb-0">
+        <div className="container mx-auto max-w-7xl">
+          <div className="border border-border rounded-2xl md:rounded-3xl p-8 md:p-12 text-center bg-card">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4">
+              Ready to take control?
+            </h2>
+            <p className="text-sm md:text-base text-muted-foreground mb-6 md:mb-8 max-w-xl mx-auto px-4">
+              Join thousands of users who are already saving money with
+              SubTrack. Start your free trial today.
+            </p>
+            <Link to="/auth">
+              <Button size="lg" className="bg-primary hover:bg-primary/90 h-11 md:h-12 px-6 md:px-8 text-sm md:text-base">
+                Start Free Trial
+                <ArrowRight className="h-4 w-4 md:h-5 md:w-5 ml-2" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border py-12 px-6">
-        <div className="container mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+      <footer className="border-t border-border py-8 md:py-12 px-4 md:px-6 mb-20 md:mb-0">
+        <div className="container mx-auto max-w-7xl">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 md:gap-4">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Zap className="h-4 w-4 text-primary-foreground" />
+              <div className="flex h-7 w-7 md:h-8 md:w-8 items-center justify-center rounded-lg bg-primary">
+                <Zap className="h-3.5 w-3.5 md:h-4 md:w-4 text-primary-foreground" />
               </div>
-              <span className="font-semibold">SubTrack</span>
+              <span className="text-sm md:text-base font-semibold">SubTrack</span>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs md:text-sm text-muted-foreground">
               © 2024 SubTrack. All rights reserved.
             </p>
           </div>
