@@ -2,15 +2,13 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useDispatch, useSelector } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Zap, Mail, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { forgotPassword } from "@/features/auth/authSlice";
-import { AppDispatch, RootState } from "@/store";
+import { useForgotPasswordMutation } from "@/api/authApi";
 import { z } from "zod";
 
 const forgotPasswordSchema = z.object({
@@ -22,8 +20,7 @@ type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export default function ForgotPassword() {
     const navigate = useNavigate();
     const { toast } = useToast();
-    const dispatch = useDispatch<AppDispatch>();
-    const { isLoading } = useSelector((state: RootState) => state.auth);
+   const [forgotPassword, { isLoading }] = useForgotPasswordMutation();
 
     const {
         register,
@@ -37,22 +34,27 @@ export default function ForgotPassword() {
     });
 
     const onSubmit = async (data: ForgotPasswordInput) => {
-        const result = await dispatch(forgotPassword(data.email));
-
-        if (forgotPassword.fulfilled.match(result)) {
-            toast({
-                title: "OTP Sent!",
-                description: "Please check your email for the 6-digit reset code.",
-            });
-            navigate("/reset-password", { state: { email: data.email } });
-        } else {
-            toast({
-                variant: "destructive",
-                title: "Request Failed",
-                description: (result.payload as string) || "Could not send reset OTP.",
-            });
-        }
-    };
+    try {
+        await forgotPassword(data.email).unwrap();
+        
+        toast({
+            title: "OTP Sent!",
+            description: "Please check your email for the 6-digit reset code.",
+        });
+        navigate("/reset-password", { state: { email: data.email } });
+    } catch (error) {
+        const errorMessage = error && typeof error === 'object' && 'data' in error && 
+                             error.data && typeof error.data === 'object' && 'message' in error.data
+                             ? String(error.data.message)
+                             : "Could not send reset OTP.";
+        
+        toast({
+            variant: "destructive",
+            title: "Request Failed",
+            description: errorMessage,
+        });
+    }
+};
 
     return (
         <div className="min-h-screen flex aura-bg">

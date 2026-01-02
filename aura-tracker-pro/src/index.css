@@ -121,11 +121,31 @@
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
+  }
+
+  /* Prevent horizontal overflow globally */
+  html {
+    overflow-x: hidden;
+    width: 100%;
   }
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Poppins', system-ui, sans-serif;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  #root {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Responsive images */
+  img {
+    max-width: 100%;
+    height: auto;
   }
 }
 
@@ -225,6 +245,28 @@
     mask-composite: exclude;
     pointer-events: none;
   }
+
+  /* Fix for recharts responsiveness */
+  .recharts-wrapper {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .recharts-surface {
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .recharts-responsive-container {
+    max-width: 100%;
+  }
+
+  /* Ensure cards and glass elements don't overflow */
+  .glass,
+  [class*="card"] {
+    max-width: 100%;
+    overflow: hidden;
+  }
 }
 
 @layer utilities {
@@ -272,4 +314,9 @@
     transform: rotateX(5deg);
   }
 
+  /* Ensure grid items don't overflow */
+  [class*="grid"] > * {
+    min-width: 0;
+    min-height: 0;
+  }
 }

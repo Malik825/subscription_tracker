@@ -69,24 +69,33 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Main wrapper for 90% width on mobile */}
-      <div className="w-[90%] md:w-full mx-auto p-4 md:p-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <DashboardHeader
-            title="Dashboard"
-            subtitle="Track and manage all your subscriptions"
-            onUpgradeClick={onUpgradeClick}
-          />
-          {!isLoadingSubs && allSubscriptions.length === 0 && (
-            <Button onClick={() => seed()} disabled={isSeeding} variant="outline" className="gap-2 w-full sm:w-auto">
-              {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-              Seed Data
-            </Button>
-          )}
+      {/* Responsive container - full width with proper padding */}
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        
+        {/* Header Section - Stacked on mobile, row on desktop */}
+        <div className="flex flex-col gap-4 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <DashboardHeader
+              title="Dashboard"
+              subtitle="Track and manage all your subscriptions"
+              onUpgradeClick={onUpgradeClick}
+            />
+            {!isLoadingSubs && allSubscriptions.length === 0 && (
+              <Button 
+                onClick={() => seed()} 
+                disabled={isSeeding} 
+                variant="outline" 
+                className="gap-2 w-full sm:w-auto sm:min-w-[140px]"
+              >
+                {isSeeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                Seed Data
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6 md:mb-8">
+        {/* Stats Grid - Responsive columns */}
+        <div className="grid gap-3 sm:gap-4 lg:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6 sm:mb-8">
           <StatCard
             title="Total Monthly"
             value={`$${(stats?.spending?.totalMonthly || 0).toFixed(2)}`}
@@ -117,24 +126,31 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Charts Row */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3 mb-6 md:mb-8">
-          <SpendingChart className="lg:col-span-2" data={monthlySpendingData} />
-          <CategoryBreakdown data={spendingData} />
+        {/* Charts Row - Stack on mobile, side by side on desktop */}
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-3 mb-6 sm:mb-8">
+          <div className="xl:col-span-2">
+            <SpendingChart data={monthlySpendingData} />
+          </div>
+          <div className="w-full">
+            <CategoryBreakdown data={spendingData} />
+          </div>
         </div>
 
-        {/* Subscriptions and Renewals */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
-          <div className="lg:col-span-2 space-y-4">
+        {/* Subscriptions and Renewals - Stack on mobile/tablet, side by side on large screens */}
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-3">
+          
+          {/* Recent Subscriptions */}
+          <div className="xl:col-span-2 space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between opacity-0 animate-fade-in animation-delay-300">
-              <h3 className="text-lg font-semibold">Recent Subscriptions</h3>
+              <h3 className="text-base sm:text-lg font-semibold">Recent Subscriptions</h3>
               <a
                 href="/subscriptions"
-                className="text-sm text-primary hover:underline"
+                className="text-xs sm:text-sm text-primary hover:underline"
               >
                 View all
               </a>
             </div>
+            
             {recentSubscriptions.map((sub, index: number) => (
               <SubscriptionCard
                 key={sub._id}
@@ -147,13 +163,18 @@ export default function Dashboard() {
                 delay={400 + index * 100}
               />
             ))}
+            
             {recentSubscriptions.length === 0 && (
-              <div className="text-center py-10 text-muted-foreground">
+              <div className="text-center py-8 sm:py-10 text-sm sm:text-base text-muted-foreground">
                 No subscriptions found. Click "Seed Data" to get started.
               </div>
             )}
           </div>
-          <UpcomingRenewals renewals={upcomingRenewals} />
+          
+          {/* Upcoming Renewals */}
+          <div className="w-full">
+            <UpcomingRenewals renewals={upcomingRenewals} />
+          </div>
         </div>
       </div>
     </div>
