@@ -1,11 +1,9 @@
 import cron from "node-cron";
 import dayjs from "dayjs";
 import Subscription from "../models/subscription.model.js";
+import { QSTASH_WORKFLOW_URL } from "../config/env.js";
 
 const MAX_DELAY_DAYS = 7;
-const WORKFLOW_URL =
-  process.env.QSTASH_WORKFLOW_URL ||
-  "https://subscription-tracker-40a6.onrender.com/api/workflow/reminders";
 
 /**
  * Daily cron job to check subscriptions and trigger reminder workflows
@@ -71,15 +69,23 @@ async function checkAndScheduleReminders() {
     console.log(`   - Days until renewal: ${daysUntilRenewal}`);
 
     try {
-      // Trigger the workflow via QStash
-      await qstashClient.publishJSON({
-        url: `${process.env.APP_URL}/api/workflow/reminders`,
-        body: {
+      // Trigger the workflow via direct HTTP call
+      const response = await fetch(QSTASH_WORKFLOW_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           subscriptionId: subscription._id.toString(),
           userId: subscription.user._id.toString(),
           renewalDate: subscription.renewalDate,
-        },
+        }),
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
 
       console.log(`   ✅ Workflow triggered successfully`);
     } catch (error) {
@@ -95,9 +101,11 @@ async function checkAndScheduleReminders() {
 // Optional: Manual trigger function for testing
 export const manualCheckReminders = async (req, res) => {
   try {
+    console.log("\n🔧 MANUAL TRIGGER: Starting reminder check...");
     await checkAndScheduleReminders();
     res.json({ success: true, message: "Reminder check completed" });
   } catch (error) {
+    console.error("❌ Manual trigger failed:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 };
