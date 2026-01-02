@@ -74,7 +74,7 @@ export const createSubscription = async (req, res, next) => {
 
     const updatedSubscription = await Subscription.findById(
       subscription._id
-    ).populate("user", "name email");
+    ).populate("user", "username email");
 
     // Send welcome email asynchronously (non-blocking)
     sendWelcomeEmail({
@@ -121,7 +121,7 @@ export const getAllSubscriptions = async (req, res, next) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const subscriptions = await Subscription.find(filter)
-      .populate("user", "name email")
+      .populate("user", "username email")
       .sort({ [sortBy]: order === "desc" ? -1 : 1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -160,7 +160,7 @@ export const getUserSubscriptions = async (req, res, next) => {
     const filter = { user: req.params.id };
     if (status) filter.status = status;
     if (category) filter.category = category;
-    if (search) filter.name = { $regex: search, $options: "i" };
+    if (search) filter.username = { $regex: search, $options: "i" };
 
     const subscriptions = await Subscription.find(filter)
       .sort({ createdAt: -1 })
@@ -189,7 +189,7 @@ export const getSubscription = async (req, res, next) => {
   try {
     const subscription = await Subscription.findById(req.params.id).populate(
       "user",
-      "name email"
+      "username email"
     );
 
     if (!subscription) {
@@ -251,7 +251,7 @@ export const updateSubscription = async (req, res, next) => {
       req.params.id,
       { ...req.body, updatedAt: Date.now() },
       { new: true, runValidators: true }
-    ).populate("user", "name email");
+    ).populate("user", "username email");
 
     if (renewalDateChanged && subscription.workflowStatus === "running") {
       try {
@@ -378,7 +378,7 @@ export const toggleSubscriptionStatus = async (req, res, next) => {
 
     const updatedSubscription = await Subscription.findById(
       req.params.id
-    ).populate("user", "name email");
+    ).populate("user", "username email");
 
     res.status(200).json({
       success: true,
@@ -439,7 +439,7 @@ export const retriggerWorkflow = async (req, res, next) => {
         remindersSent: [],
       },
       { new: true }
-    ).populate("user", "name email");
+    ).populate("user", "username email");
 
     res.status(200).json({
       success: true,
@@ -488,7 +488,7 @@ export const cancelWorkflowEndpoint = async (req, res, next) => {
       id,
       { workflowStatus: "cancelled" },
       { new: true }
-    ).populate("user", "name email");
+    ).populate("user", "username email");
 
     res.status(200).json({
       success: true,
@@ -603,7 +603,7 @@ export const getSubscriptionStats = async (req, res, next) => {
       )
       .map((s) => ({
         id: s._id,
-        name: s.name,
+        username: s.username,
         renewalDate: s.renewalDate,
         daysUntil: dayjs(s.renewalDate).diff(dayjs(), "day"),
         price: s.price,
@@ -676,70 +676,70 @@ export const seedSubscriptions = async (req, res, next) => {
   try {
     const subscriptionData = [
       {
-        name: "Netflix",
+        username: "Netflix",
         price: 15.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Entertainment",
       },
       {
-        name: "Spotify",
+        username: "Spotify",
         price: 9.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Entertainment",
       },
       {
-        name: "GitHub Pro",
+        username: "GitHub Pro",
         price: 4.0,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        name: "Figma",
+        username: "Figma",
         price: 12.0,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        name: "Notion",
+        username: "Notion",
         price: 10.0,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        name: "Adobe Creative Cloud",
+        username: "Adobe Creative Cloud",
         price: 54.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        name: "Amazon Prime",
+        username: "Amazon Prime",
         price: 139.0,
         currency: "USD",
         frequency: "Yearly",
         category: "Shopping",
       },
       {
-        name: "Uber One",
+        username: "Uber One",
         price: 9.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Travel",
       },
       {
-        name: "HelloFresh",
+        username: "HelloFresh",
         price: 60.0,
         currency: "USD",
         frequency: "Weekly",
         category: "Food",
       },
       {
-        name: "Gym Membership",
+        username: "Gym Membership",
         price: 45.0,
         currency: "USD",
         frequency: "Monthly",

@@ -31,11 +31,11 @@ export const sendReminders = serve(async (context) => {
   }
 
   console.log("✅ Subscription found:");
-  console.log("   - Name:", subscription.name);
+  console.log("   - username:", subscription.username);
   console.log("   - Status:", subscription.status);
   console.log(
     "   - User:",
-    subscription.user?.name,
+    subscription.user?.username,
     `(${subscription.user?.email})`
   );
   console.log("   - Renewal Date:", subscription.renewalDate);
@@ -154,7 +154,7 @@ export const sendReminders = serve(async (context) => {
     await triggerReminder(
       context,
       `${daysBefore} days before reminder`,
-      subscription
+      subscription._id
     );
   }
 
@@ -165,10 +165,18 @@ export const sendReminders = serve(async (context) => {
 
 const fetchSubscription = async (context, subscriptionId) => {
   return await context.run("get subscription", async () => {
-    return await Subscription.findById(subscriptionId).populate(
+    const subscription = await Subscription.findById(subscriptionId).populate(
       "user",
-      "name email"
+      "username email"
     );
+
+    // ✅ Add debug logging
+    console.log("📦 Fetched subscription user data:");
+    console.log("   - User exists:", !!subscription?.user);
+    console.log("   - User username:", subscription?.user?.username);
+    console.log("   - User email:", subscription?.user?.email);
+
+    return subscription;
   });
 };
 
@@ -178,16 +186,76 @@ const sleepUntilReminder = async (context, label, date) => {
   console.log(`   ✅ Sleep completed`);
 };
 
-const triggerReminder = async (context, label, subscription) => {
+// Replace the triggerReminder function in workflow.controller.js with this:
+
+const triggerReminder = async (context, label, subscriptionOrId) => {
   console.log(`\n┌─────────────────────────────────────────────┐`);
   console.log(`│  TRIGGERING REMINDER: ${label.padEnd(24)}│`);
   console.log(`└─────────────────────────────────────────────┘`);
 
   return await context.run(label, async () => {
+    let subscription;
+    let subscriptionId;
+
+    // Handle both subscription object and ID
+    if (typeof subscriptionOrId === "object" && subscriptionOrId._id) {
+      subscriptionId = subscriptionOrId._id;
+      console.log(
+        "📦 Received subscription object, refetching with ID:",
+        subscriptionId
+      );
+    } else {
+      subscriptionId = subscriptionOrId;
+      console.log("📦 Received subscription ID:", subscriptionId);
+    }
+
+    // Always refetch to ensure user is populated (critical after sleep/wakeup)
+    try {
+      subscription = await Subscription.findById(subscriptionId).populate(
+        "user",
+        "userusername email" // ✅ FIXED: Changed from "username email" to "userusername email"
+      );
+
+      console.log("✅ Subscription fetched from database");
+      console.log("   - Subscription exists:", !!subscription);
+      console.log("   - User field exists:", !!subscription?.user);
+      console.log(
+        "   - User is populated:",
+        subscription?.user?._id ? "Yes" : "No"
+      );
+    } catch (fetchError) {
+      console.error("❌ Error fetching subscription:", fetchError.message);
+      throw new Error(`Failed to fetch subscription: ${fetchError.message}`);
+    }
+
+    if (!subscription) {
+      throw new Error(`Subscription not found with ID: ${subscriptionId}`);
+    }
+
+    // ✅ Critical check: Ensure user is populated
+    if (!subscription.user) {
+      console.error(
+        "❌❌❌ CRITICAL ERROR: User not populated on subscription!"
+      );
+      console.error("Subscription ID:", subscription._id);
+      console.error("Subscription user field:", subscription.user);
+      throw new Error(
+        "User data not found on subscription. The user reference may be invalid or deleted."
+      );
+    }
+
+    if (!subscription.user.email || !subscription.user.userusername) {
+      console.error("❌❌❌ CRITICAL ERROR: User data incomplete!");
+      console.error("User object:", JSON.stringify(subscription.user, null, 2));
+      throw new Error("User email or userusername is missing");
+    }
+
     console.log("\n📋 Reminder Details:");
     console.log("   - Label:", label);
+    console.log("   - User ID:", subscription.user._id);
     console.log("   - Recipient:", subscription.user.email);
-    console.log("   - Subscription:", subscription.name);
+    console.log("   - Userusername:", subscription.user.userusername); // ✅ Changed from username to userusername
+    console.log("   - Subscription:", subscription.username);
     console.log(
       "   - Renewal Date:",
       dayjs(subscription.renewalDate).format("MMM D, YYYY")
@@ -208,7 +276,7 @@ const triggerReminder = async (context, label, subscription) => {
       return result;
     } catch (error) {
       console.error("\n❌❌❌ REMINDER FAILED ❌❌❌");
-      console.error("Error name:", error.name);
+      console.error("Error username:", error.username);
       console.error("Error message:", error.message);
       console.error("Error stack:", error.stack);
       throw error;
