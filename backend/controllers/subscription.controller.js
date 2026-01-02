@@ -25,9 +25,7 @@ const triggerWorkflow = async (subscriptionId, userId, renewalDate) => {
 const cancelWorkflow = async (workflowRunId) => {
   try {
     await workflowClient.cancel(workflowRunId);
-  } catch (error) {
-    // Silent fail
-  }
+  } catch (error) {}
 };
 
 export const createSubscription = async (req, res, next) => {
@@ -76,21 +74,12 @@ export const createSubscription = async (req, res, next) => {
       subscription._id
     ).populate("user", "username email");
 
-    // Send welcome email asynchronously (non-blocking)
     sendWelcomeEmail({
       to: req.user.email,
       subscription: updatedSubscription,
     })
-      .then((result) => {
-        if (result.success) {
-          console.log("✅ Welcome email sent successfully");
-        } else {
-          console.error("⚠️ Welcome email failed:", result.error);
-        }
-      })
-      .catch((error) => {
-        console.error("⚠️ Welcome email error:", error.message);
-      });
+      .then((result) => {})
+      .catch((error) => {});
 
     res.status(201).json({
       success: true,
@@ -270,9 +259,7 @@ export const updateSubscription = async (req, res, next) => {
           workflowStatus: "running",
           remindersSent: [],
         });
-      } catch (workflowError) {
-        // Silent fail
-      }
+      } catch (workflowError) {}
     }
 
     res.status(200).json({
