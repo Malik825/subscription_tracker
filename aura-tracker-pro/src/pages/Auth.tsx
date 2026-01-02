@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useDispatch, useSelector } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,16 +9,20 @@ import { Zap, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { loginSchema, registerSchema, LoginInput, RegisterInput } from "@/schemas/auth";
-import { loginUser, registerUser } from "@/features/auth/authSlice";
-import { AppDispatch, RootState } from "@/store";
+import { useLoginMutation, useRegisterMutation } from "@/api/authApi";
+
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const dispatch = useDispatch<AppDispatch>();
-  const { isLoading, error } = useSelector((state: RootState) => state.auth);
+
+  // RTK Query hooks
+  const [login, { isLoading: isLoginLoading }] = useLoginMutation();
+  const [register, { isLoading: isRegisterLoading }] = useRegisterMutation();
+
+  const isLoading = isLoginLoading || isRegisterLoading;
 
   const {
     register: registerForm,
@@ -37,38 +40,43 @@ export default function Auth() {
   });
 
   const onSubmit = async (data: LoginInput | RegisterInput) => {
-    // Determine which action to dispatch based on isLogin state
-    const action = isLogin
-      ? loginUser(data as LoginInput)
-      : registerUser(data as RegisterInput);
-
-    const result = await dispatch(action);
-
-    if (loginUser.fulfilled.match(result)) {
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      navigate("/dashboard");
-    } else if (registerUser.fulfilled.match(result)) {
-      toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account before logging in.",
-      });
-      setIsLogin(true); // Switch to login mode
-      reset();
-    } else {
+    try {
+      if (isLogin) {
+        // Login
+        await login(data as LoginInput).unwrap();
+        toast({
+          title: "Welcome back!",
+          description: "You have successfully logged in.",
+        });
+        navigate("/dashboard");
+      } else {
+        // Register
+        await register(data as RegisterInput).unwrap();
+        toast({
+          title: "Account created!",
+          description: "Please check your email to verify your account before logging in.",
+        });
+        setIsLogin(true);
+        reset();
+      }
+    } catch (error) {
+      const errorMessage = 
+        error && typeof error === 'object' && 'data' in error && 
+        error.data && typeof error.data === 'object' && 'message' in error.data
+          ? String(error.data.message)
+          : "An unexpected error occurred.";
+      
       toast({
         variant: "destructive",
         title: "Authentication Failed",
-        description: (result.payload as string) || "An unexpected error occurred.",
+        description: errorMessage,
       });
     }
   };
 
   const toggleAuthMode = (loginMode: boolean) => {
     setIsLogin(loginMode);
-    reset(); // Clear errors and values when switching modes
+    reset();
   };
 
   return (
@@ -84,7 +92,6 @@ export default function Auth() {
 
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12 bg-gradient-to-br from-primary/10 via-background to-background relative overflow-hidden">
-        {/* Decorative elements */}
         <div className="absolute top-20 left-20 w-72 h-72 bg-primary/20 rounded-full blur-[100px] animate-pulse-glow" />
         <div className="absolute bottom-20 right-20 w-96 h-96 bg-glow-secondary/20 rounded-full blur-[120px] animate-pulse-glow animation-delay-200" />
 
@@ -133,7 +140,6 @@ export default function Auth() {
       {/* Right side - Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
-          {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-3 mb-8">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary glow-primary">
               <Zap className="h-6 w-6 text-primary-foreground" />
@@ -152,7 +158,6 @@ export default function Auth() {
             </p>
           </div>
 
-          {/* Tab switcher */}
           <div className="flex glass rounded-lg p-1 opacity-0 animate-fade-in animation-delay-100">
             <button
               onClick={() => toggleAuthMode(true)}

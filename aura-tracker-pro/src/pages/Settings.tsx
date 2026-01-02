@@ -18,20 +18,23 @@ import {
     HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useDispatch } from "react-redux";
-import { logoutUser } from "@/features/auth/authSlice";
-import { AppDispatch } from "@/store";
+import { useLogoutMutation } from "@/api/authApi";
 import { useNavigate } from "react-router-dom";
 
 export default function Settings() {
     const { user } = useAuth();
-    const dispatch = useDispatch<AppDispatch>();
+    const [logout] = useLogoutMutation();
     const navigate = useNavigate();
 
-    const handleLogout = async () => {
-        await dispatch(logoutUser());
+   const handleLogout = async () => {
+    try {
+        await logout().unwrap();
         navigate("/auth");
-    };
+    } catch (error) {
+        console.error("Logout failed:", error);
+        navigate("/auth"); // Navigate anyway
+    }
+};
 
     return (
         <div className="min-h-screen aura-bg">

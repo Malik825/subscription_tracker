@@ -3,17 +3,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-
 import api from "@/lib/axios";
-import { checkAuth } from "@/features/auth/authSlice";
-import { useAppDispatch } from "@/redux";
+import { useLazyCheckAuthQuery } from "@/api/authApi";
 
 export default function VerifyEmail() {
     const [searchParams] = useSearchParams();
     const token = searchParams.get("token");
     const navigate = useNavigate();
     const { toast } = useToast();
-    const dispatch = useAppDispatch();
+    const [triggerCheckAuth] = useLazyCheckAuthQuery();
 
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
 
@@ -29,7 +27,7 @@ export default function VerifyEmail() {
                 
                 // User is now auto-logged in via cookie
                 // Refresh Redux state with verified user
-                await dispatch(checkAuth());
+                await triggerCheckAuth();
                 
                 setStatus("success");
                 toast({
@@ -47,7 +45,7 @@ export default function VerifyEmail() {
         };
 
         verify();
-    }, [token, dispatch, toast]);
+    }, [token, triggerCheckAuth, toast]);
 
     return (
         <div className="min-h-screen flex items-center justify-center aura-bg p-4">

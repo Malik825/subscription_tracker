@@ -1,26 +1,47 @@
-import { SERVER_URL } from "../config/env.js";
-import { workflowClient } from "../config/upsatsh.js";
-import Subscription from "../models/subscription.model.js";
 import dayjs from "dayjs";
+import Subscription from "../models/subscription.model.js";
+import { workflowClient } from "../config/upsatsh.js";
+import { SERVER_URL } from "../config/env.js";
 
-// ============================================================================
-// CREATE SUBSCRIPTION
-// ============================================================================
+const FREE_USER_LIMIT = 10;
+
+const triggerWorkflow = async (subscriptionId, userId, renewalDate) => {
+  try {
+    const workflowResponse = await workflowClient.trigger({
+      url: `${SERVER_URL}/api/v1/workflows/subscription/reminders`,
+      body: {
+        subscriptionId: subscriptionId.toString(),
+        userId: userId.toString(),
+        renewalDate,
+      },
+    });
+    return workflowResponse.workflowRunId;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const cancelWorkflow = async (workflowRunId) => {
+  try {
+    await workflowClient.cancel(workflowRunId);
+  } catch (error) {
+    // Silent fail
+  }
+};
+
 export const createSubscription = async (req, res, next) => {
   try {
-    console.log("\n🆕 Creating new subscription...");
-    console.log("Request body:", JSON.stringify(req.body, null, 2));
-    console.log("User ID:", req.user._id);
-    console.log("User Plan:", req.user.plan);
-
-    // Enforce limits for free users
     if (req.user.plan === "free") {
-      const subscriptionCount = await Subscription.countDocuments({ user: req.user._id });
-      if (subscriptionCount >= 10) {
+      const subscriptionCount = await Subscription.countDocuments({
+        user: req.user._id,
+      });
+
+      if (subscriptionCount >= FREE_USER_LIMIT) {
         return res.status(403).json({
           success: false,
-          message: "Free users are limited to 10 subscriptions. Please upgrade to Pro for unlimited tracking.",
-          code: "LIMIT_REACHED"
+          message:
+            "Free users are limited to 10 subscriptions. Please upgrade to Pro for unlimited tracking.",
+          code: "LIMIT_REACHED",
         });
       }
     }
@@ -31,53 +52,25 @@ export const createSubscription = async (req, res, next) => {
       workflowStatus: "pending",
     });
 
-    console.log("✅ Subscription created:", subscription._id);
-
     let workflowRunId = null;
 
-    // Trigger workflow
     try {
-      console.log("\n🚀 Triggering workflow...");
-      console.log(
-        "Workflow URL:",
-        `${SERVER_URL}/api/v1/workflows/subscription/reminders`
+      workflowRunId = await triggerWorkflow(
+        subscription._id,
+        subscription.user,
+        subscription.renewalDate
       );
 
-      const payload = {
-        subscriptionId: subscription._id.toString(),
-        userId: subscription.user.toString(),
-        renewalDate: subscription.renewalDate,
-      };
-
-      console.log("Payload:", payload);
-
-      const workflowResponse = await workflowClient.trigger({
-        url: `${SERVER_URL}/api/v1/workflows/subscription/reminders`,
-        body: payload,
-      });
-
-      workflowRunId = workflowResponse.workflowRunId;
-      console.log("✅ Workflow triggered! Run ID:", workflowRunId);
-
-      // Update subscription with workflow info
       await Subscription.findByIdAndUpdate(subscription._id, {
-        workflowRunId: workflowRunId,
+        workflowRunId,
         workflowStatus: "running",
       });
-
-      console.log("✅ Subscription updated with workflow ID");
     } catch (workflowError) {
-      console.error("❌ Failed to trigger workflow:");
-      console.error("Error message:", workflowError.message);
-      console.error("Error stack:", workflowError.stack);
-
-      // Mark workflow as failed
       await Subscription.findByIdAndUpdate(subscription._id, {
         workflowStatus: "failed",
       });
     }
 
-    // Fetch updated subscription with workflow info
     const updatedSubscription = await Subscription.findById(
       subscription._id
     ).populate("user", "name email");
@@ -89,18 +82,12 @@ export const createSubscription = async (req, res, next) => {
       workflowRunId,
     });
   } catch (error) {
-    console.error("❌ Error in createSubscription:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// GET ALL SUBSCRIPTIONS (Admin only - optional)
-// ============================================================================
 export const getAllSubscriptions = async (req, res, next) => {
   try {
-    console.log("\n📋 Fetching all subscriptions...");
-
     const {
       page = 1,
       limit = 10,
@@ -110,12 +97,10 @@ export const getAllSubscriptions = async (req, res, next) => {
       order = "desc",
     } = req.query;
 
-    // Build filter
     const filter = {};
     if (status) filter.status = status;
     if (category) filter.category = category;
 
-    // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const subscriptions = await Subscription.find(filter)
@@ -125,8 +110,6 @@ export const getAllSubscriptions = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await Subscription.countDocuments(filter);
-
-    console.log(`✅ Found ${subscriptions.length} subscriptions`);
 
     res.status(200).json({
       success: true,
@@ -140,22 +123,12 @@ export const getAllSubscriptions = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error in getAllSubscriptions:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// GET USER SUBSCRIPTIONS
-// ============================================================================
 export const getUserSubscriptions = async (req, res, next) => {
   try {
-    console.log("\n📋 Fetching user subscriptions...");
-    console.log("User ID from params:", req.params.id);
-    console.log("User ID from token:", req.user._id.toString());
-    console.log("IDs match:", req.user._id.toString() === req.params.id);
-
-    // Check authorization
     if (req.user._id.toString() !== req.params.id) {
       const error = new Error(
         "You are not authorized to view these subscriptions"
@@ -167,13 +140,10 @@ export const getUserSubscriptions = async (req, res, next) => {
     const { status, category, search, page = 1, limit = 10 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build filter
     const filter = { user: req.params.id };
     if (status) filter.status = status;
     if (category) filter.category = category;
-    if (search) {
-      filter.name = { $regex: search, $options: "i" };
-    }
+    if (search) filter.name = { $regex: search, $options: "i" };
 
     const subscriptions = await Subscription.find(filter)
       .sort({ createdAt: -1 })
@@ -181,8 +151,6 @@ export const getUserSubscriptions = async (req, res, next) => {
       .limit(parseInt(limit));
 
     const total = await Subscription.countDocuments(filter);
-
-    console.log(`✅ Found ${subscriptions.length} subscriptions for user`);
 
     res.status(200).json({
       success: true,
@@ -196,18 +164,12 @@ export const getUserSubscriptions = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error in getUserSubscriptions:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// GET SINGLE SUBSCRIPTION
-// ============================================================================
 export const getSubscription = async (req, res, next) => {
   try {
-    console.log("\n🔍 Fetching subscription:", req.params.id);
-
     const subscription = await Subscription.findById(req.params.id).populate(
       "user",
       "name email"
@@ -219,7 +181,6 @@ export const getSubscription = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user._id.toString() !== req.user._id.toString()) {
       const error = new Error(
         "You are not authorized to view this subscription"
@@ -228,9 +189,6 @@ export const getSubscription = async (req, res, next) => {
       throw error;
     }
 
-    console.log("✅ Subscription found:", subscription.name);
-
-    // Calculate days until renewal
     const daysUntilRenewal = dayjs(subscription.renewalDate).diff(
       dayjs(),
       "day"
@@ -245,19 +203,12 @@ export const getSubscription = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error in getSubscription:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// UPDATE SUBSCRIPTION
-// ============================================================================
 export const updateSubscription = async (req, res, next) => {
   try {
-    console.log("\n✏️ Updating subscription:", req.params.id);
-    console.log("Update data:", JSON.stringify(req.body, null, 2));
-
     const subscription = await Subscription.findById(req.params.id);
 
     if (!subscription) {
@@ -266,7 +217,6 @@ export const updateSubscription = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user.toString() !== req.user._id.toString()) {
       const error = new Error(
         "You are not authorized to update this subscription"
@@ -275,53 +225,36 @@ export const updateSubscription = async (req, res, next) => {
       throw error;
     }
 
-    // Check if renewal date is being updated
     const renewalDateChanged =
       req.body.renewalDate &&
-      req.body.renewalDate !== subscription.renewalDate.toISOString();
+      new Date(req.body.renewalDate).toISOString().split("T")[0] !==
+        new Date(subscription.renewalDate).toISOString().split("T")[0];
 
-    // Update subscription
     const updatedSubscription = await Subscription.findByIdAndUpdate(
       req.params.id,
       { ...req.body, updatedAt: Date.now() },
       { new: true, runValidators: true }
     ).populate("user", "name email");
 
-    console.log("✅ Subscription updated successfully");
-
-    // If renewal date changed and workflow is running, cancel and retrigger
     if (renewalDateChanged && subscription.workflowStatus === "running") {
-      console.log("🔄 Renewal date changed, retriggering workflow...");
-
       try {
-        // Cancel existing workflow
         if (subscription.workflowRunId) {
-          await workflowClient.cancel(subscription.workflowRunId);
-          console.log("✅ Old workflow cancelled");
+          await cancelWorkflow(subscription.workflowRunId);
         }
 
-        // Trigger new workflow
-        const workflowResponse = await workflowClient.trigger({
-          url: `${SERVER_URL}/api/v1/workflows/subscription/reminders`,
-          body: {
-            subscriptionId: updatedSubscription._id.toString(),
-            userId: updatedSubscription.user._id.toString(),
-            renewalDate: updatedSubscription.renewalDate,
-          },
-        });
+        const workflowRunId = await triggerWorkflow(
+          updatedSubscription._id,
+          updatedSubscription.user._id,
+          updatedSubscription.renewalDate
+        );
 
         await Subscription.findByIdAndUpdate(req.params.id, {
-          workflowRunId: workflowResponse.workflowRunId,
+          workflowRunId,
           workflowStatus: "running",
-          remindersSent: [], // Reset reminders
+          remindersSent: [],
         });
-
-        console.log(
-          "✅ New workflow triggered:",
-          workflowResponse.workflowRunId
-        );
       } catch (workflowError) {
-        console.error("❌ Failed to retrigger workflow:", workflowError);
+        // Silent fail
       }
     }
 
@@ -331,18 +264,12 @@ export const updateSubscription = async (req, res, next) => {
       data: updatedSubscription,
     });
   } catch (error) {
-    console.error("❌ Error in updateSubscription:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// DELETE SUBSCRIPTION
-// ============================================================================
 export const deleteSubscription = async (req, res, next) => {
   try {
-    console.log("\n🗑️ Deleting subscription:", req.params.id);
-
     const subscription = await Subscription.findById(req.params.id);
 
     if (!subscription) {
@@ -351,7 +278,6 @@ export const deleteSubscription = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user.toString() !== req.user._id.toString()) {
       const error = new Error(
         "You are not authorized to delete this subscription"
@@ -360,40 +286,26 @@ export const deleteSubscription = async (req, res, next) => {
       throw error;
     }
 
-    // Cancel workflow if running
     if (
       subscription.workflowRunId &&
       subscription.workflowStatus === "running"
     ) {
-      try {
-        await workflowClient.cancel(subscription.workflowRunId);
-        console.log("✅ Workflow cancelled");
-      } catch (workflowError) {
-        console.error("❌ Failed to cancel workflow:", workflowError);
-      }
+      await cancelWorkflow(subscription.workflowRunId);
     }
 
     await Subscription.findByIdAndDelete(req.params.id);
-
-    console.log("✅ Subscription deleted successfully");
 
     res.status(200).json({
       success: true,
       message: "Subscription deleted successfully",
     });
   } catch (error) {
-    console.error("❌ Error in deleteSubscription:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// TOGGLE SUBSCRIPTION STATUS (Activate/Deactivate)
-// ============================================================================
 export const toggleSubscriptionStatus = async (req, res, next) => {
   try {
-    console.log("\n🔄 Toggling subscription status:", req.params.id);
-
     const subscription = await Subscription.findById(req.params.id);
 
     if (!subscription) {
@@ -402,7 +314,6 @@ export const toggleSubscriptionStatus = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user.toString() !== req.user._id.toString()) {
       const error = new Error(
         "You are not authorized to modify this subscription"
@@ -414,43 +325,28 @@ export const toggleSubscriptionStatus = async (req, res, next) => {
     const newStatus =
       subscription.status.toLowerCase() === "active" ? "Inactive" : "Active";
 
-    console.log(`Changing status from ${subscription.status} to ${newStatus}`);
-
-    // If deactivating, cancel workflow
     if (
       newStatus === "Inactive" &&
       subscription.workflowRunId &&
       subscription.workflowStatus === "running"
     ) {
-      try {
-        await workflowClient.cancel(subscription.workflowRunId);
-        console.log("✅ Workflow cancelled due to deactivation");
-      } catch (workflowError) {
-        console.error("❌ Failed to cancel workflow:", workflowError);
-      }
+      await cancelWorkflow(subscription.workflowRunId);
     }
 
-    // If activating, trigger workflow
     if (newStatus === "Active") {
       try {
-        const workflowResponse = await workflowClient.trigger({
-          url: `${SERVER_URL}/api/v1/workflows/subscription/reminders`,
-          body: {
-            subscriptionId: subscription._id.toString(),
-            userId: subscription.user.toString(),
-            renewalDate: subscription.renewalDate,
-          },
-        });
+        const workflowRunId = await triggerWorkflow(
+          subscription._id,
+          subscription.user,
+          subscription.renewalDate
+        );
 
         await Subscription.findByIdAndUpdate(req.params.id, {
           status: newStatus,
-          workflowRunId: workflowResponse.workflowRunId,
+          workflowRunId,
           workflowStatus: "running",
         });
-
-        console.log("✅ Workflow triggered due to activation");
       } catch (workflowError) {
-        console.error("❌ Failed to trigger workflow:", workflowError);
         await Subscription.findByIdAndUpdate(req.params.id, {
           status: newStatus,
           workflowStatus: "failed",
@@ -467,28 +363,19 @@ export const toggleSubscriptionStatus = async (req, res, next) => {
       req.params.id
     ).populate("user", "name email");
 
-    console.log("✅ Status toggled successfully");
-
     res.status(200).json({
       success: true,
       message: `Subscription ${newStatus.toLowerCase()} successfully`,
       data: updatedSubscription,
     });
   } catch (error) {
-    console.error("❌ Error in toggleSubscriptionStatus:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// RETRIGGER WORKFLOW
-// ============================================================================
 export const retriggerWorkflow = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    console.log("\n🔄 Retriggering workflow for subscription:", id);
-
     const subscription = await Subscription.findById(id);
 
     if (!subscription) {
@@ -497,7 +384,6 @@ export const retriggerWorkflow = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user.toString() !== req.user._id.toString()) {
       const error = new Error(
         "You are not authorized to retrigger this workflow"
@@ -506,9 +392,7 @@ export const retriggerWorkflow = async (req, res, next) => {
       throw error;
     }
 
-    // Check if workflow is already running
     if (subscription.workflowStatus === "running") {
-      console.warn("⚠️ Workflow already running for this subscription");
       return res.status(400).json({
         success: false,
         message: "Workflow is already running for this subscription",
@@ -516,9 +400,7 @@ export const retriggerWorkflow = async (req, res, next) => {
       });
     }
 
-    // Check if subscription is active
     if (subscription.status.toLowerCase() !== "active") {
-      console.warn("⚠️ Cannot trigger workflow for inactive subscription");
       return res.status(400).json({
         success: false,
         message:
@@ -526,56 +408,35 @@ export const retriggerWorkflow = async (req, res, next) => {
       });
     }
 
-    console.log("✅ Checks passed. Triggering new workflow...");
+    const workflowRunId = await triggerWorkflow(
+      subscription._id,
+      subscription.user,
+      subscription.renewalDate
+    );
 
-    try {
-      const workflowResponse = await workflowClient.trigger({
-        url: `${SERVER_URL}/api/v1/workflows/subscription/reminders`,
-        body: {
-          subscriptionId: subscription._id.toString(),
-          userId: subscription.user.toString(),
-          renewalDate: subscription.renewalDate,
-        },
-      });
+    const updatedSubscription = await Subscription.findByIdAndUpdate(
+      id,
+      {
+        workflowRunId,
+        workflowStatus: "running",
+        remindersSent: [],
+      },
+      { new: true }
+    ).populate("user", "name email");
 
-      const workflowRunId = workflowResponse.workflowRunId;
-      console.log("✅ New workflow triggered! Run ID:", workflowRunId);
-
-      // Update subscription
-      const updatedSubscription = await Subscription.findByIdAndUpdate(
-        id,
-        {
-          workflowRunId: workflowRunId,
-          workflowStatus: "running",
-          remindersSent: [], // Reset reminders
-        },
-        { new: true }
-      ).populate("user", "name email");
-
-      res.status(200).json({
-        success: true,
-        message: "Workflow retriggered successfully",
-        data: updatedSubscription,
-      });
-    } catch (workflowError) {
-      console.error("❌ Failed to trigger workflow:", workflowError);
-      throw workflowError;
-    }
+    res.status(200).json({
+      success: true,
+      message: "Workflow retriggered successfully",
+      data: updatedSubscription,
+    });
   } catch (error) {
-    console.error("❌ Error in retriggerWorkflow:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// CANCEL WORKFLOW
-// ============================================================================
-export const cancelWorkflow = async (req, res, next) => {
+export const cancelWorkflowEndpoint = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    console.log("\n🛑 Cancelling workflow for subscription:", id);
-
     const subscription = await Subscription.findById(id);
 
     if (!subscription) {
@@ -584,7 +445,6 @@ export const cancelWorkflow = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user.toString() !== req.user._id.toString()) {
       const error = new Error("You are not authorized to cancel this workflow");
       error.statusCode = 403;
@@ -605,45 +465,27 @@ export const cancelWorkflow = async (req, res, next) => {
       });
     }
 
-    try {
-      // Cancel the workflow in Upstash
-      await workflowClient.cancel(subscription.workflowRunId);
+    await workflowClient.cancel(subscription.workflowRunId);
 
-      console.log("✅ Workflow cancelled:", subscription.workflowRunId);
+    const updatedSubscription = await Subscription.findByIdAndUpdate(
+      id,
+      { workflowStatus: "cancelled" },
+      { new: true }
+    ).populate("user", "name email");
 
-      // Update subscription
-      const updatedSubscription = await Subscription.findByIdAndUpdate(
-        id,
-        {
-          workflowStatus: "cancelled",
-        },
-        { new: true }
-      ).populate("user", "name email");
-
-      res.status(200).json({
-        success: true,
-        message: "Workflow cancelled successfully",
-        data: updatedSubscription,
-      });
-    } catch (error) {
-      console.error("❌ Failed to cancel workflow:", error);
-      throw error;
-    }
+    res.status(200).json({
+      success: true,
+      message: "Workflow cancelled successfully",
+      data: updatedSubscription,
+    });
   } catch (error) {
-    console.error("❌ Error in cancelWorkflow:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// GET WORKFLOW STATUS
-// ============================================================================
 export const getWorkflowStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    console.log("\n📊 Fetching workflow status for subscription:", id);
-
     const subscription = await Subscription.findById(id);
 
     if (!subscription) {
@@ -652,7 +494,6 @@ export const getWorkflowStatus = async (req, res, next) => {
       throw error;
     }
 
-    // Check authorization
     if (subscription.user.toString() !== req.user._id.toString()) {
       const error = new Error(
         "You are not authorized to view this workflow status"
@@ -660,8 +501,6 @@ export const getWorkflowStatus = async (req, res, next) => {
       error.statusCode = 403;
       throw error;
     }
-
-    console.log("✅ Workflow status retrieved");
 
     res.status(200).json({
       success: true,
@@ -674,20 +513,13 @@ export const getWorkflowStatus = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error("❌ Error in getWorkflowStatus:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// GET SUBSCRIPTION STATISTICS
-// ============================================================================
 export const getSubscriptionStats = async (req, res, next) => {
   try {
-    console.log("\n📊 Calculating subscription statistics...");
-
     const userId = req.user._id;
-
     const subscriptions = await Subscription.find({ user: userId });
 
     const stats = {
@@ -718,7 +550,6 @@ export const getSubscriptionStats = async (req, res, next) => {
       },
     };
 
-    // Calculate spending
     subscriptions
       .filter((s) => s.status.toLowerCase() === "active")
       .forEach((sub) => {
@@ -732,14 +563,12 @@ export const getSubscriptionStats = async (req, res, next) => {
         stats.spending.totalMonthly += monthlyAmount;
         stats.spending.totalYearly += yearlyAmount;
 
-        // By category
         if (!stats.spending.byCategory[sub.category]) {
           stats.spending.byCategory[sub.category] = { monthly: 0, yearly: 0 };
         }
         stats.spending.byCategory[sub.category].monthly += monthlyAmount;
         stats.spending.byCategory[sub.category].yearly += yearlyAmount;
 
-        // By currency
         if (!stats.spending.byCurrency[sub.currency]) {
           stats.spending.byCurrency[sub.currency] = { monthly: 0, yearly: 0 };
         }
@@ -747,7 +576,6 @@ export const getSubscriptionStats = async (req, res, next) => {
         stats.spending.byCurrency[sub.currency].yearly += yearlyAmount;
       });
 
-    // Get upcoming renewals (next 30 days)
     const thirtyDaysFromNow = dayjs().add(30, "day");
     stats.upcomingRenewals = subscriptions
       .filter(
@@ -766,26 +594,18 @@ export const getSubscriptionStats = async (req, res, next) => {
       }))
       .sort((a, b) => a.daysUntil - b.daysUntil);
 
-    console.log("✅ Statistics calculated");
-
     res.status(200).json({
       success: true,
       data: stats,
     });
   } catch (error) {
-    console.error("❌ Error in getSubscriptionStats:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// BULK OPERATIONS
-// ============================================================================
 export const bulkDeleteSubscriptions = async (req, res, next) => {
   try {
     const { subscriptionIds } = req.body;
-
-    console.log("\n🗑️ Bulk deleting subscriptions:", subscriptionIds);
 
     if (!Array.isArray(subscriptionIds) || subscriptionIds.length === 0) {
       const error = new Error("Please provide an array of subscription IDs");
@@ -793,7 +613,6 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
       throw error;
     }
 
-    // Verify ownership of all subscriptions
     const subscriptions = await Subscription.find({
       _id: { $in: subscriptionIds },
     });
@@ -816,23 +635,15 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
       throw error;
     }
 
-    // Cancel all running workflows
     const cancelPromises = subscriptions
       .filter((s) => s.workflowRunId && s.workflowStatus === "running")
-      .map((s) =>
-        workflowClient.cancel(s.workflowRunId).catch((err) => {
-          console.error(`Failed to cancel workflow ${s.workflowRunId}:`, err);
-        })
-      );
+      .map((s) => cancelWorkflow(s.workflowRunId));
 
     await Promise.all(cancelPromises);
 
-    // Delete subscriptions
     const result = await Subscription.deleteMany({
       _id: { $in: subscriptionIds },
     });
-
-    console.log(`✅ Deleted ${result.deletedCount} subscriptions`);
 
     res.status(200).json({
       success: true,
@@ -840,54 +651,99 @@ export const bulkDeleteSubscriptions = async (req, res, next) => {
       deletedCount: result.deletedCount,
     });
   } catch (error) {
-    console.error("❌ Error in bulkDeleteSubscriptions:", error);
     next(error);
   }
 };
 
-// ============================================================================
-// SEED SUBSCRIPTIONS
-// ============================================================================
 export const seedSubscriptions = async (req, res, next) => {
   try {
-    console.log("\n🌱 Seeding subscriptions for user:", req.user._id);
-
     const subscriptionData = [
-      { name: "Netflix", price: 15.99, currency: "USD", frequency: "Monthly", category: "Entertainment" },
-      { name: "Spotify", price: 9.99, currency: "USD", frequency: "Monthly", category: "Entertainment" },
-      { name: "GitHub Pro", price: 4.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
-      { name: "Figma", price: 12.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
-      { name: "Notion", price: 10.00, currency: "USD", frequency: "Monthly", category: "Subscription" },
-      { name: "Adobe Creative Cloud", price: 54.99, currency: "USD", frequency: "Monthly", category: "Subscription" },
-      { name: "Amazon Prime", price: 139.00, currency: "USD", frequency: "Yearly", category: "Shopping" },
-      { name: "Uber One", price: 9.99, currency: "USD", frequency: "Monthly", category: "Travel" },
-      { name: "HelloFresh", price: 60.00, currency: "USD", frequency: "Weekly", category: "Food" },
-      { name: "Gym Membership", price: 45.00, currency: "USD", frequency: "Monthly", category: "Others" },
+      {
+        name: "Netflix",
+        price: 15.99,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Entertainment",
+      },
+      {
+        name: "Spotify",
+        price: 9.99,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Entertainment",
+      },
+      {
+        name: "GitHub Pro",
+        price: 4.0,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Subscription",
+      },
+      {
+        name: "Figma",
+        price: 12.0,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Subscription",
+      },
+      {
+        name: "Notion",
+        price: 10.0,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Subscription",
+      },
+      {
+        name: "Adobe Creative Cloud",
+        price: 54.99,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Subscription",
+      },
+      {
+        name: "Amazon Prime",
+        price: 139.0,
+        currency: "USD",
+        frequency: "Yearly",
+        category: "Shopping",
+      },
+      {
+        name: "Uber One",
+        price: 9.99,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Travel",
+      },
+      {
+        name: "HelloFresh",
+        price: 60.0,
+        currency: "USD",
+        frequency: "Weekly",
+        category: "Food",
+      },
+      {
+        name: "Gym Membership",
+        price: 45.0,
+        currency: "USD",
+        frequency: "Monthly",
+        category: "Others",
+      },
     ];
 
-    const subscriptions = await Promise.all(
-      subscriptionData.map(async (sub) => {
-        const startDate = new Date(); // Start today
-        // Randomize start date slightly to last month or so
-        startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 30));
+    const subscriptions = subscriptionData.map((sub) => {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - Math.floor(Math.random() * 30));
 
-        return {
-          ...sub,
-          startDate,
-          status: "Active",
-          user: req.user._id,
-          workflowStatus: "idle", // Don't trigger workflows for seeds to avoid spamming
-        };
-      })
-    );
+      return {
+        ...sub,
+        startDate,
+        status: "Active",
+        user: req.user._id,
+        workflowStatus: "idle",
+      };
+    });
 
-    const createdSubscriptions = [];
-    for (const sub of subscriptions) {
-      const createdSub = await Subscription.create(sub);
-      createdSubscriptions.push(createdSub);
-    }
-
-    console.log(`✅ Seeded ${createdSubscriptions.length} subscriptions`);
+    const createdSubscriptions = await Subscription.insertMany(subscriptions);
 
     res.status(201).json({
       success: true,
@@ -895,7 +751,6 @@ export const seedSubscriptions = async (req, res, next) => {
       data: createdSubscriptions,
     });
   } catch (error) {
-    console.error("❌ Error in seedSubscriptions:", error);
     next(error);
   }
 };
@@ -903,8 +758,6 @@ export const seedSubscriptions = async (req, res, next) => {
 export const bulkUpdateStatus = async (req, res, next) => {
   try {
     const { subscriptionIds, status } = req.body;
-
-    console.log("\n🔄 Bulk updating subscription status to:", status);
 
     if (!Array.isArray(subscriptionIds) || subscriptionIds.length === 0) {
       const error = new Error("Please provide an array of subscription IDs");
@@ -918,7 +771,6 @@ export const bulkUpdateStatus = async (req, res, next) => {
       throw error;
     }
 
-    // Verify ownership
     const subscriptions = await Subscription.find({
       _id: { $in: subscriptionIds },
     });
@@ -935,26 +787,18 @@ export const bulkUpdateStatus = async (req, res, next) => {
       throw error;
     }
 
-    // Update subscriptions
     const result = await Subscription.updateMany(
       { _id: { $in: subscriptionIds } },
       { status, updatedAt: Date.now() }
     );
 
-    // Handle workflows based on status
     if (status === "Inactive") {
-      // Cancel workflows for deactivated subscriptions
       const cancelPromises = subscriptions
         .filter((s) => s.workflowRunId && s.workflowStatus === "running")
-        .map((s) =>
-          workflowClient.cancel(s.workflowRunId).catch((err) => {
-            console.error(`Failed to cancel workflow ${s.workflowRunId}:`, err);
-          })
-        );
+        .map((s) => cancelWorkflow(s.workflowRunId));
+
       await Promise.all(cancelPromises);
     }
-
-    console.log(`✅ Updated ${result.modifiedCount} subscriptions`);
 
     res.status(200).json({
       success: true,
@@ -962,7 +806,6 @@ export const bulkUpdateStatus = async (req, res, next) => {
       modifiedCount: result.modifiedCount,
     });
   } catch (error) {
-    console.error("❌ Error in bulkUpdateStatus:", error);
     next(error);
   }
 };
