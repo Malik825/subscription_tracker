@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const { serve } = require("@upstash/workflow/express");
 
 const REMINDERS = [7, 5, 2, 1];
+const TRIAL_REMINDERS = [2, 1];
 const MAX_DELAY_DAYS = 7;
 
 export const sendReminders = serve(async (context) => {
@@ -18,29 +19,40 @@ export const sendReminders = serve(async (context) => {
     return;
   }
 
-  if (subscription.status.toLowerCase() !== "active") {
+  if (
+    subscription.status.toLowerCase() !== "active" &&
+    subscription.status.toLowerCase() !== "trial"
+  ) {
     return;
   }
 
-  const renewalDate = dayjs(subscription.renewalDate);
+  const isTrial = subscription.isTrial && subscription.trialType !== "none";
+  const targetDate = isTrial
+    ? dayjs(subscription.trialEndDate)
+    : dayjs(subscription.renewalDate);
   const now = dayjs();
 
-  if (renewalDate.isBefore(now, "day")) {
+  if (targetDate.isBefore(now, "day")) {
     return;
   }
 
-  if (renewalDate.diff(now, "day") > MAX_DELAY_DAYS) {
+  if (targetDate.diff(now, "day") > MAX_DELAY_DAYS) {
     return {
-      message: "Renewal too far in future, will reschedule via cron",
-      daysUntilRenewal: renewalDate.diff(now, "day"),
-      renewalDate: renewalDate.format("YYYY-MM-DD"),
+      message: isTrial
+        ? "Trial end too far in future, will reschedule via cron"
+        : "Renewal too far in future, will reschedule via cron",
+      daysUntilTarget: targetDate.diff(now, "day"),
+      targetDate: targetDate.format("YYYY-MM-DD"),
+      isTrial,
     };
   }
 
-  for (let i = 0; i < REMINDERS.length; i++) {
-    const daysBefore = REMINDERS[i];
+  const remindersToUse = isTrial ? TRIAL_REMINDERS : REMINDERS;
 
-    const reminderDate = renewalDate.subtract(daysBefore, "day").startOf("day");
+  for (let i = 0; i < remindersToUse.length; i++) {
+    const daysBefore = remindersToUse[i];
+
+    const reminderDate = targetDate.subtract(daysBefore, "day").startOf("day");
     const nowStartOfDay = now.startOf("day");
 
     if (reminderDate.isBefore(nowStartOfDay)) {
@@ -50,8 +62,11 @@ export const sendReminders = serve(async (context) => {
     if (reminderDate.isSame(nowStartOfDay, "day")) {
       await triggerReminder(
         context,
-        `${daysBefore} days before reminder`,
-        subscription._id
+        isTrial
+          ? `Trial ending in ${daysBefore} days`
+          : `${daysBefore} days before reminder`,
+        subscription._id,
+        isTrial
       );
       continue;
     }
@@ -64,8 +79,11 @@ export const sendReminders = serve(async (context) => {
 
     await triggerReminder(
       context,
-      `${daysBefore} days before reminder`,
-      subscription._id
+      isTrial
+        ? `Trial ending in ${daysBefore} days`
+        : `${daysBefore} days before reminder`,
+      subscription._id,
+      isTrial
     );
   }
 });
@@ -83,7 +101,12 @@ const sleepUntilReminder = async (context, label, date) => {
   await context.sleepUntil(label, date.toDate());
 };
 
-const triggerReminder = async (context, label, subscriptionOrId) => {
+const triggerReminder = async (
+  context,
+  label,
+  subscriptionOrId,
+  isTrial = false
+) => {
   return await context.run(label, async () => {
     let subscription;
     let subscriptionId;
@@ -118,8 +141,9 @@ const triggerReminder = async (context, label, subscriptionOrId) => {
     try {
       return await sendReminderEmail({
         to: subscription.user.email,
-        type: label,
+        type: isTrial ? "trial-ending" : label,
         subscription,
+        isTrial,
       });
     } catch (error) {
       throw error;
