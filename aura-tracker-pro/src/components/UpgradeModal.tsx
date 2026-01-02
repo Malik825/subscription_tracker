@@ -1,13 +1,8 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Sparkles, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/store";
-import { createStripeCheckout, initializePaystack } from "@/features/auth/authSlice";
-import { useState } from "react";
+import { Check, Sparkles, Loader2, CreditCard, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { CreditCard, Globe } from "lucide-react";
+import { useCreateStripeCheckoutMutation, useInitializePaystackMutation } from "@/api/authApi";
 
 interface UpgradeModalProps {
     isOpen: boolean;
@@ -15,9 +10,9 @@ interface UpgradeModalProps {
 }
 
 export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
-    const dispatch = useDispatch<AppDispatch>();
     const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState<"stripe" | "paystack" | null>(null);
+    const [createStripeCheckout, { isLoading: isStripeLoading }] = useCreateStripeCheckoutMutation();
+    const [initializePaystack, { isLoading: isPaystackLoading }] = useInitializePaystackMutation();
 
     const features = [
         "Unlimited Subscriptions",
@@ -29,25 +24,23 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
     ];
 
     const handleUpgrade = async (gateway: "stripe" | "paystack") => {
-        setIsLoading(gateway);
         try {
-            const action = gateway === "stripe" ? createStripeCheckout() : initializePaystack();
-            const result = await dispatch(action).unwrap();
+            const result = gateway === "stripe" 
+                ? await createStripeCheckout().unwrap()
+                : await initializePaystack().unwrap();
 
             if (result.success && result.data.checkoutUrl) {
                 window.location.href = result.data.checkoutUrl;
             } else {
                 throw new Error(`Failed to initiate ${gateway} checkout`);
             }
-        } catch (error: unknown) {
+        } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             toast({
                 title: "Error",
                 description: errorMessage || `Failed to initiate ${gateway} checkout. Please try again.`,
                 variant: "destructive",
             });
-        } finally {
-            setIsLoading(null);
         }
     };
 
@@ -90,9 +83,9 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                             size="xl"
                             className="w-full text-lg font-bold rounded-2xl h-14 gap-3"
                             onClick={() => handleUpgrade("stripe")}
-                            disabled={isLoading !== null}
+                            disabled={isStripeLoading || isPaystackLoading}
                         >
-                            {isLoading === "stripe" ? (
+                            {isStripeLoading ? (
                                 <>
                                     <Loader2 className="h-5 w-5 animate-spin" />
                                     Processing...
@@ -109,9 +102,9 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                             size="xl"
                             className="w-full text-lg font-bold rounded-2xl h-14 gap-3 border-2 hover:bg-primary/5"
                             onClick={() => handleUpgrade("paystack")}
-                            disabled={isLoading !== null}
+                            disabled={isStripeLoading || isPaystackLoading}
                         >
-                            {isLoading === "paystack" ? (
+                            {isPaystackLoading ? (
                                 <>
                                     <Loader2 className="h-5 w-5 animate-spin" />
                                     Processing...
@@ -126,7 +119,7 @@ export function UpgradeModal({ isOpen, onClose }: UpgradeModalProps) {
                         <Button
                             variant="ghost"
                             className="w-full text-muted-foreground hover:text-foreground mt-2"
-                            disabled={isLoading !== null}
+                            disabled={isStripeLoading || isPaystackLoading}
                             onClick={onClose}
                         >
                             Maybe later

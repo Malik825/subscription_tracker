@@ -1,8 +1,6 @@
 import { cn } from "@/lib/utils";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/store";
-import { logoutUser } from "@/features/auth/authSlice";
+import { useLogoutMutation } from "@/api/authApi";
 import {
   LayoutDashboard,
   CreditCard,
@@ -45,15 +43,20 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
   const location = useLocation();
-  const dispatch = useDispatch<AppDispatch>();
+ const [logout] = useLogoutMutation();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const handleLogout = async () => {
-    await dispatch(logoutUser());
-    navigate("/auth");
-  };
-
+const handleLogout = async () => {
+    try {
+        await logout().unwrap();
+        navigate("/auth");
+    } catch (error) {
+        // Handle error if needed
+        console.error("Logout failed:", error);
+        navigate("/auth"); // Navigate anyway
+    }
+};
   return (
     <aside
       className={cn(

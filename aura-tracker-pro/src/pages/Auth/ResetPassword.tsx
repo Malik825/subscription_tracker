@@ -1,15 +1,13 @@
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useDispatch, useSelector } from "react-redux";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Zap, Lock, KeyRound, ArrowRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { resetPassword } from "@/features/auth/authSlice";
-import { AppDispatch, RootState } from "@/store";
+import { useResetPasswordMutation } from "@/api/authApi";
 import { z } from "zod";
 
 const resetPasswordSchema = z.object({
@@ -27,8 +25,7 @@ export default function ResetPassword() {
     const navigate = useNavigate();
     const location = useLocation();
     const { toast } = useToast();
-    const dispatch = useDispatch<AppDispatch>();
-    const { isLoading } = useSelector((state: RootState) => state.auth);
+    const [resetPassword, { isLoading }] = useResetPasswordMutation();
 
     // Get email from previous step (ForgotPassword.tsx)
     const email = location.state?.email || "";
@@ -57,23 +54,28 @@ export default function ResetPassword() {
             return;
         }
 
-        const result = await dispatch(resetPassword({
-            email,
-            otp: data.otp,
-            newPassword: data.newPassword
-        }));
+        try {
+            await resetPassword({
+                email,
+                otp: data.otp,
+                newPassword: data.newPassword
+            }).unwrap();
 
-        if (resetPassword.fulfilled.match(result)) {
             toast({
                 title: "Success!",
                 description: "Your password has been reset. You can now log in.",
             });
             navigate("/auth");
-        } else {
+        } catch (error) {
+            const errorMessage = error && typeof error === 'object' && 'data' in error && 
+                                 error.data && typeof error.data === 'object' && 'message' in error.data
+                                 ? String(error.data.message)
+                                 : "Invalid code or password requirements not met.";
+            
             toast({
                 variant: "destructive",
                 title: "Reset Failed",
-                description: (result.payload as string) || "Invalid code or password requirements not met.",
+                description: errorMessage,
             });
         }
     };

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -13,19 +13,30 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useDispatch } from "react-redux";
-import { AppDispatch } from "@/store";
-import { logoutUser } from "@/features/auth/authSlice";
-import { useNavigate } from "react-router-dom";
+import { useLogoutMutation } from "@/api/authApi";
+import { useToast } from "@/hooks/use-toast";
 
 export function Navbar() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const dispatch = useDispatch<AppDispatch>();
+  const [logout] = useLogoutMutation();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const handleLogout = async () => {
-    await dispatch(logoutUser());
-    navigate("/");
+    try {
+      await logout().unwrap();
+      toast({
+        title: "Logged out successfully",
+        description: "See you next time!",
+      });
+      navigate("/");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Logout failed",
+        description: "Please try again",
+      });
+    }
   };
 
   // Get user initials for avatar
