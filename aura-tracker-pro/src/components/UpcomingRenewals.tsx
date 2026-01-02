@@ -50,7 +50,8 @@ export function UpcomingRenewals({ className, renewals }: UpcomingRenewalsProps)
                 color: renewal.color,
               }}
             >
-              {renewal.name.charAt(0)}
+             {renewal.name?.charAt(0) ?? "?"}
+
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
