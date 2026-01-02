@@ -165,10 +165,18 @@ export const sendReminders = serve(async (context) => {
 
 const fetchSubscription = async (context, subscriptionId) => {
   return await context.run("get subscription", async () => {
-    return await Subscription.findById(subscriptionId).populate(
+    const subscription = await Subscription.findById(subscriptionId).populate(
       "user",
       "name email"
     );
+
+    // ✅ Add debug logging
+    console.log("📦 Fetched subscription user data:");
+    console.log("   - User exists:", !!subscription?.user);
+    console.log("   - User name:", subscription?.user?.name);
+    console.log("   - User email:", subscription?.user?.email);
+
+    return subscription;
   });
 };
 
@@ -178,15 +186,26 @@ const sleepUntilReminder = async (context, label, date) => {
   console.log(`   ✅ Sleep completed`);
 };
 
-const triggerReminder = async (context, label, subscription) => {
+const triggerReminder = async (context, label, subscriptionId) => {
   console.log(`\n┌─────────────────────────────────────────────┐`);
   console.log(`│  TRIGGERING REMINDER: ${label.padEnd(24)}│`);
   console.log(`└─────────────────────────────────────────────┘`);
 
   return await context.run(label, async () => {
+    // ✅ Refetch subscription to ensure user is populated
+    const subscription = await Subscription.findById(subscriptionId).populate(
+      "user",
+      "name email"
+    );
+
+    if (!subscription) {
+      throw new Error("Subscription not found");
+    }
+
     console.log("\n📋 Reminder Details:");
     console.log("   - Label:", label);
-    console.log("   - Recipient:", subscription.user.email);
+    console.log("   - Recipient:", subscription.user?.email);
+    console.log("   - User Name:", subscription.user?.name);
     console.log("   - Subscription:", subscription.name);
     console.log(
       "   - Renewal Date:",
