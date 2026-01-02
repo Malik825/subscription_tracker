@@ -13,54 +13,27 @@ sgMail.setApiKey(SENDGRID_API_KEY);
 
 const FROM_EMAIL = "abdulmaliksuleman75@gmail.com";
 
-// Replace the sendReminderEmail function in send.email.js with this:
-
 export const sendReminderEmail = async ({ to, type, subscription }) => {
   try {
-    console.log("\n🔍 Email validation check:");
-    console.log("   - to:", to);
-    console.log("   - type:", type);
-    console.log("   - subscription exists:", !!subscription);
-    console.log("   - subscription._id:", subscription?._id);
-    console.log("   - subscription.name:", subscription?.name);
-    console.log("   - subscription.user exists:", !!subscription?.user);
-    
-    // Deep check of user object
-    if (subscription?.user) {
-      console.log("   - subscription.user type:", typeof subscription.user);
-      console.log("   - subscription.user._id:", subscription.user._id);
-      console.log("   - subscription.user.username:", subscription.user.username);  // ✅ Changed from name
-      console.log("   - subscription.user.email:", subscription.user.email);
-    } else {
-      console.log("   - subscription.user: NULL/UNDEFINED");
-    }
-    
-    console.log("   - subscription.renewalDate:", subscription?.renewalDate);
-
     if (!to || !type) {
       throw new Error("Missing required parameters: to and type are required");
     }
 
-    // More detailed validation
     if (!subscription) {
       throw new Error("Subscription object is missing");
     }
 
     if (!subscription.user) {
-      console.error("❌ Subscription user is missing!");
-      console.error("Full subscription:", JSON.stringify(subscription, null, 2));
-      throw new Error("Subscription user data is missing - user may have been deleted");
+      throw new Error(
+        "Subscription user data is missing - user may have been deleted"
+      );
     }
 
-    // ✅ FIXED: Check for username instead of name
     if (!subscription.user.username) {
-      console.error("❌ Username is missing!");
-      console.error("User object:", JSON.stringify(subscription.user, null, 2));
       throw new Error("Username is missing");
     }
 
     if (!subscription.renewalDate) {
-      console.error("❌ Renewal date is missing!");
       throw new Error("Subscription renewal date is missing");
     }
 
@@ -70,9 +43,8 @@ export const sendReminderEmail = async ({ to, type, subscription }) => {
       throw new Error(`Invalid email type: ${type}`);
     }
 
-    // ✅ FIXED: Use username instead of name
     const mailInfo = {
-      userName: subscription.user.username,  // Changed from subscription.user.name
+      userName: subscription.user.username,
       subscriptionName: subscription.name,
       renewalDate: dayjs(subscription.renewalDate).format("MMM D, YYYY"),
       planName: subscription.name,
@@ -93,27 +65,16 @@ export const sendReminderEmail = async ({ to, type, subscription }) => {
       html: message,
     };
 
-    console.log("\n📧 Sending email via SendGrid...");
-    console.log("   - To:", to);
-    console.log("   - Subject:", subject);
-
     await sgMail.send(msg);
-    
-    console.log("✅ Email sent successfully via SendGrid");
+
     return { success: true };
   } catch (error) {
-    console.error("❌ sendReminderEmail error:", error.message);
-    console.error("Full error:", error);
     throw error;
   }
 };
 
 export const sendWelcomeEmail = async ({ to, subscription }) => {
   try {
-    console.log("\n📧 Sending welcome email...");
-    console.log("   - To:", to);
-    console.log("   - Subscription:", subscription.name);
-
     if (!to) {
       throw new Error("Missing required parameter: to (email address)");
     }
@@ -153,12 +114,9 @@ export const sendWelcomeEmail = async ({ to, subscription }) => {
     };
 
     await sgMail.send(msg);
-    
-    console.log("✅ Welcome email sent successfully");
+
     return { success: true, message: "Welcome email sent" };
   } catch (error) {
-    console.error("❌ Failed to send welcome email:", error.message);
-    // Don't throw error - we don't want email failures to break subscription creation
     return { success: false, error: error.message };
   }
 };
