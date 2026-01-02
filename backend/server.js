@@ -12,6 +12,7 @@ import paymentRouter from "./routes/payment.route.js";
 import cors from "cors";
 import { FRONTEND_URL } from "./config/env.js";
 import aiRoutes from "./routes/ai.route.js";
+import { startReminderCron } from "./utils/check-reminders.cron.js";
 
 // Initialize Express app
 const app = express();
@@ -69,9 +70,12 @@ app.use("/api/v1/ai", aiRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
+startReminderCron();
+
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   await connectDB();
+
 });
 
 export default app;

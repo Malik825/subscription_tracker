@@ -92,7 +92,7 @@ export default function Index() {
   return (
     <div className="min-h-screen bg-background">
       {/* Main wrapper for 90% width on mobile */}
-      <div className="w-[90%] md:w-full mx-auto">
+      <div className="w-[80%] md:w-full mx-auto">
         
         {/* Navigation */}
         <Navbar />
