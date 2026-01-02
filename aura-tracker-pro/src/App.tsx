@@ -18,6 +18,7 @@ import ResetPassword from "./pages/Auth/ResetPassword";
 
 // Layouts
 import DashboardLayout from "./layouts/DashboardLayout";
+import AIAssistant from "./pages/AIAssistant";
 
 /**
  * App Component
@@ -43,6 +44,7 @@ const App = () => (
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/ai-assistant" element={<AIAssistant />} />
       </Route>
 
       {/* 404 Fallback */}
