@@ -1,7 +1,8 @@
 import cron from "node-cron";
 import dayjs from "dayjs";
 import Subscription from "../models/subscription.model.js";
-import { QSTASH_WORKFLOW_URL } from "../config/env.js";
+import { SERVER_URL } from "../config/env.js";
+import { workflowClient } from "../config/upsatsh.js";
 
 const MAX_DELAY_DAYS = 7;
 
@@ -56,6 +57,8 @@ async function checkAndScheduleReminders() {
     return;
   }
 
+  const results = [];
+
   // Trigger workflow for each subscription
   for (const subscription of subscriptions) {
     const daysUntilRenewal = dayjs(subscription.renewalDate).diff(now, "day");
@@ -69,41 +72,53 @@ async function checkAndScheduleReminders() {
     console.log(`   - Days until renewal: ${daysUntilRenewal}`);
 
     try {
-      // Trigger the workflow via direct HTTP call
-      const response = await fetch(QSTASH_WORKFLOW_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // ✅ Trigger workflow using Upstash Workflow Client
+      const workflowUrl = `${SERVER_URL}/api/v1/workflow/subscription/reminders`;
+
+      const response = await workflowClient.trigger({
+        url: workflowUrl,
+        body: {
           subscriptionId: subscription._id.toString(),
-          userId: subscription.user._id.toString(),
-          renewalDate: subscription.renewalDate,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
       console.log(`   ✅ Workflow triggered successfully`);
+      console.log(`   📨 Workflow Run ID: ${response.workflowRunId}`);
+
+      results.push({
+        subscriptionId: subscription._id,
+        name: subscription.name,
+        status: "triggered",
+        workflowRunId: response.workflowRunId,
+      });
     } catch (error) {
       console.error(`   ❌ Failed to trigger workflow:`, error.message);
+      results.push({
+        subscriptionId: subscription._id,
+        name: subscription.name,
+        status: "failed",
+        error: error.message,
+      });
     }
   }
 
   console.log("\n╔════════════════════════════════════════════════╗");
   console.log("║     CRON JOB COMPLETED                         ║");
   console.log("╚════════════════════════════════════════════════╝\n");
+
+  return results;
 }
 
 // Optional: Manual trigger function for testing
 export const manualCheckReminders = async (req, res) => {
   try {
     console.log("\n🔧 MANUAL TRIGGER: Starting reminder check...");
-    await checkAndScheduleReminders();
-    res.json({ success: true, message: "Reminder check completed" });
+    const results = await checkAndScheduleReminders();
+    res.json({
+      success: true,
+      message: "Reminder check completed",
+      results,
+    });
   } catch (error) {
     console.error("❌ Manual trigger failed:", error);
     res.status(500).json({ success: false, error: error.message });
