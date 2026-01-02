@@ -66,7 +66,95 @@ export const generateEmailTemplate = ({
 </div>
 `;
 
+export const welcomeEmailTemplate = {
+  label: "welcome",
+  generateSubject: (data) =>
+    `🎉 Welcome! Your ${data.subscriptionName} Subscription is Now Being Tracked`,
+  generateBody: (data) => `
+<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f4f7fa;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <tr>
+            <td style="background-color: #4a90e2; text-align: center; padding: 40px;">
+                <p style="font-size: 54px; line-height: 54px; font-weight: 800; color: white; margin: 0;">SubDub</p>
+                <p style="color: white; font-size: 18px; margin: 10px 0 0 0;">Subscription Tracker</p>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 30px;">
+                <h2 style="color: #4a90e2; margin-top: 0;">🎉 Subscription Added Successfully!</h2>
+                
+                <p style="font-size: 16px; margin-bottom: 25px;">Hello <strong style="color: #4a90e2;">${data.userName}</strong>,</p>
+                
+                <p style="font-size: 16px; margin-bottom: 25px;">Great news! We're now tracking your <strong>${data.subscriptionName}</strong> subscription. You'll receive timely reminders before your renewal date.</p>
+                
+                <table cellpadding="15" cellspacing="0" border="0" width="100%" style="background-color: #f0f7ff; border-radius: 10px; margin-bottom: 25px;">
+                    <tr>
+                        <td style="font-size: 16px; border-bottom: 1px solid #d0e3ff;">
+                            <strong>Subscription:</strong> ${data.subscriptionName}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 16px; border-bottom: 1px solid #d0e3ff;">
+                            <strong>Price:</strong> ${data.price}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 16px; border-bottom: 1px solid #d0e3ff;">
+                            <strong>Renewal Date:</strong> ${data.renewalDate}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="font-size: 16px;">
+                            <strong>Days Until Renewal:</strong> ${data.daysUntilRenewal} days
+                        </td>
+                    </tr>
+                </table>
+                
+                <div style="background-color: #fff8e1; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 25px; border-radius: 5px;">
+                    <p style="margin: 0; font-size: 15px;">
+                        <strong>📅 Reminder Schedule:</strong><br>
+                        You'll receive email reminders at:<br>
+                        • 7 days before renewal<br>
+                        • 5 days before renewal<br>
+                        • 2 days before renewal<br>
+                        • 1 day before renewal
+                    </p>
+                </div>
+                
+                <p style="font-size: 16px; margin-bottom: 25px;">You can manage your subscription anytime from your <a href="${data.accountSettingsLink}" style="color: #4a90e2; text-decoration: none; font-weight: bold;">dashboard</a>.</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="${data.accountSettingsLink}" style="background-color: #4a90e2; color: white; padding: 14px 28px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">View Dashboard</a>
+                </div>
+                
+                <p style="font-size: 16px; margin-top: 30px;">Need help? <a href="${data.supportLink}" style="color: #4a90e2; text-decoration: none;">Contact our support team</a> anytime.</p>
+                
+                <p style="font-size: 16px; margin-top: 30px;">
+                    Best regards,<br>
+                    <strong>The SubDub Team</strong>
+                </p>
+            </td>
+        </tr>
+        <tr>
+            <td style="background-color: #f0f7ff; padding: 20px; text-align: center; font-size: 14px;">
+                <p style="margin: 0 0 10px;">
+                    SubDub Inc. | 123 Main St, Anytown, AN 12345
+                </p>
+                <p style="margin: 0;">
+                    <a href="#" style="color: #4a90e2; text-decoration: none; margin: 0 10px;">Unsubscribe</a> | 
+                    <a href="#" style="color: #4a90e2; text-decoration: none; margin: 0 10px;">Privacy Policy</a> | 
+                    <a href="#" style="color: #4a90e2; text-decoration: none; margin: 0 10px;">Terms of Service</a>
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+  `,
+};
+
 export const emailTemplates = [
+  welcomeEmailTemplate, // Add this
+
   {
     label: "7 days before reminder",
     generateSubject: (data) =>

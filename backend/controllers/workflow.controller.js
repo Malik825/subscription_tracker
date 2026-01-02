@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const { serve } = require("@upstash/workflow/express");
 
 const REMINDERS = [7, 5, 2, 1];
+const MAX_DELAY_DAYS = 7; // QStash limit: 7 days (604800 seconds)
 
 export const sendReminders = serve(async (context) => {
   console.log("\n╔════════════════════════════════════════════════╗");
@@ -76,6 +77,7 @@ export const sendReminders = serve(async (context) => {
 
     const reminderDate = renewalDate.subtract(daysBefore, "day").startOf("day");
     const nowStartOfDay = now.startOf("day");
+    const daysUntilReminder = reminderDate.diff(nowStartOfDay, "day");
 
     console.log("📊 Reminder Analysis:");
     console.log(
@@ -83,6 +85,7 @@ export const sendReminders = serve(async (context) => {
       reminderDate.format("YYYY-MM-DD")
     );
     console.log("   - Today is:", nowStartOfDay.format("YYYY-MM-DD"));
+    console.log("   - Days until reminder:", daysUntilReminder);
     console.log(
       "   - Is reminder in future?",
       reminderDate.isAfter(nowStartOfDay)
@@ -96,7 +99,38 @@ export const sendReminders = serve(async (context) => {
       reminderDate.isBefore(nowStartOfDay)
     );
 
-    // If reminder date is in the future, sleep until then
+    // CHECK: If reminder is more than MAX_DELAY_DAYS in the future
+    if (daysUntilReminder > MAX_DELAY_DAYS) {
+      console.log("\n⚠️ QSTASH LIMIT: Reminder exceeds maximum delay");
+      console.log(`   - Days until reminder: ${daysUntilReminder}`);
+      console.log(`   - QStash max delay: ${MAX_DELAY_DAYS} days`);
+      console.log("   - SOLUTION: Sleep to intermediate checkpoint");
+
+      // Sleep to a point that's MAX_DELAY_DAYS from now, then re-evaluate
+      const intermediateDate = now
+        .add(MAX_DELAY_DAYS - 1, "day")
+        .startOf("day");
+
+      console.log(
+        `   - Sleeping to intermediate date: ${intermediateDate.format(
+          "YYYY-MM-DD"
+        )}`
+      );
+
+      await sleepUntilReminder(
+        context,
+        `Checkpoint before ${daysBefore}-day reminder`,
+        intermediateDate
+      );
+
+      console.log("\n⏰ WOKE UP at checkpoint! Re-checking reminder date...");
+
+      // After waking up, continue to next iteration to re-evaluate
+      // The workflow will be retriggered or continue processing
+      continue;
+    }
+
+    // If reminder date is in the future (but within MAX_DELAY_DAYS), sleep until then
     if (reminderDate.isAfter(nowStartOfDay)) {
       console.log("\n⏰ ACTION: Sleep until reminder date");
       console.log("   - Sleeping from:", now.format("YYYY-MM-DD HH:mm:ss"));
@@ -104,7 +138,7 @@ export const sendReminders = serve(async (context) => {
         "   - Sleeping until:",
         reminderDate.format("YYYY-MM-DD HH:mm:ss")
       );
-      console.log("   - Duration:", reminderDate.diff(now, "hour"), "hours");
+      console.log("   - Duration:", daysUntilReminder, "days");
 
       await sleepUntilReminder(
         context,
@@ -146,21 +180,13 @@ export const sendReminders = serve(async (context) => {
   console.log("║     WORKFLOW COMPLETED SUCCESSFULLY ✅         ║");
   console.log("╚════════════════════════════════════════════════╝\n");
 });
+
 const fetchSubscription = async (context, subscriptionId) => {
   return await context.run("get subscription", async () => {
-    console.log("   🔄 Running database query...");
-    const sub = await Subscription.findById(subscriptionId).populate(
+    return await Subscription.findById(subscriptionId).populate(
       "user",
       "name email"
     );
-
-    if (sub) {
-      console.log("   ✅ Query successful");
-    } else {
-      console.error("   ❌ Query returned null/undefined");
-    }
-
-    return sub;
   });
 };
 
