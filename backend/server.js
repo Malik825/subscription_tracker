@@ -12,6 +12,7 @@ import paymentRouter from "./routes/payment.route.js";
 import cors from "cors";
 import { FRONTEND_URL } from "./config/env.js";
 import aiRoutes from "./routes/ai.route.js";
+import { manualCheckReminders, startReminderCron } from "./utils/check-reminders.cron.js";
 
 // Initialize Express app
 const app = express();
@@ -63,15 +64,18 @@ app.get("/", (req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/subscriptions", subscriptionRouter);
-app.use("/api/v1/workflows", workflowRouter);
+app.use("/api/v1/workflow", workflowRouter);
+
 app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/ai", aiRoutes);
 // Error handling middleware
 app.use(errorHandler);
+startReminderCron();
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   await connectDB();
+
 });
 
 export default app;

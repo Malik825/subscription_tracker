@@ -22,4 +22,5 @@ export const {
   PAYSTACK_PLAN_CODE,
   SENDGRID_API_KEY,
   GROQ_API_KEY,
+  QSTASH_WORKFLOW_URL,
 } = process.env;
