@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import Subscription from "../models/subscription.model.js";
 import { workflowClient } from "../config/upsatsh.js";
 import { SERVER_URL } from "../config/env.js";
+import { sendWelcomeEmail } from "../utils/send.email.js";
 
 const FREE_USER_LIMIT = 10;
 
@@ -74,6 +75,22 @@ export const createSubscription = async (req, res, next) => {
     const updatedSubscription = await Subscription.findById(
       subscription._id
     ).populate("user", "name email");
+
+    // Send welcome email asynchronously (non-blocking)
+    sendWelcomeEmail({
+      to: req.user.email,
+      subscription: updatedSubscription,
+    })
+      .then((result) => {
+        if (result.success) {
+          console.log("✅ Welcome email sent successfully");
+        } else {
+          console.error("⚠️ Welcome email failed:", result.error);
+        }
+      })
+      .catch((error) => {
+        console.error("⚠️ Welcome email error:", error.message);
+      });
 
     res.status(201).json({
       success: true,

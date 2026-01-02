@@ -68,3 +68,60 @@ export const sendPasswordResetEmail = async (email, otp) => {
     throw new Error("Could not send password reset email");
   }
 };
+
+// ========== ADD THIS NEW FUNCTION ==========
+export const sendWelcomeEmail = async ({ to, subscription }) => {
+  try {
+    console.log("\n📧 Sending welcome email...");
+    console.log("   - To:", to);
+    console.log("   - Subscription:", subscription.name);
+
+    if (!to) {
+      throw new Error("Missing required parameter: to (email address)");
+    }
+
+    if (!subscription?.name || !subscription?.renewalDate) {
+      throw new Error("Invalid subscription data");
+    }
+
+    const daysUntilRenewal = dayjs(subscription.renewalDate).diff(
+      dayjs(),
+      "day"
+    );
+
+    const mailInfo = {
+      userName: subscription.user?.name || "Valued Customer",
+      subscriptionName: subscription.name,
+      renewalDate: dayjs(subscription.renewalDate).format("MMM D, YYYY"),
+      planName: subscription.name,
+      price: `${subscription.currency} ${subscription.price} (${subscription.frequency})`,
+      paymentMethod: subscription.paymentMethod || "Not specified",
+      accountSettingsLink:
+        FRONTEND_URL || "https://subscription-tracker-lovat.vercel.app",
+      supportLink:
+        `${FRONTEND_URL}/support` ||
+        "https://subscription-tracker-lovat.vercel.app/support",
+      daysUntilRenewal: daysUntilRenewal > 0 ? daysUntilRenewal : 0,
+    };
+
+    const message = welcomeEmailTemplate.generateBody(mailInfo);
+    const subject = welcomeEmailTemplate.generateSubject(mailInfo);
+
+    const msg = {
+      to: to,
+      from: FROM_EMAIL,
+      subject: subject,
+      html: message,
+    };
+
+    await sgMail.send(msg);
+    
+    console.log("✅ Welcome email sent successfully");
+    return { success: true, message: "Welcome email sent" };
+  } catch (error) {
+    console.error("❌ Failed to send welcome email:", error.message);
+    // Don't throw error - we don't want email failures to break subscription creation
+    return { success: false, error: error.message };
+  }
+};
+// ========== END OF NEW FUNCTION ==========
