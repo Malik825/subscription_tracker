@@ -66,6 +66,25 @@ export const sendReminders = serve(async (context) => {
   console.log("\n🔔 Processing reminders...");
   console.log("Reminder schedule:", REMINDERS, "days before renewal\n");
 
+  // Early exit if renewal is too far in the future
+  if (renewalDate.diff(now, "day") > MAX_DELAY_DAYS) {
+    console.log("\n⚠️ Renewal is more than 7 days away");
+    console.log(`   Days until renewal: ${renewalDate.diff(now, "day")}`);
+    console.log(
+      "   This workflow will be re-triggered by the cron job when closer"
+    );
+    console.log("   Exiting workflow now.");
+    return {
+      message: "Renewal too far in future, will reschedule via cron",
+      daysUntilRenewal: renewalDate.diff(now, "day"),
+      renewalDate: renewalDate.format("YYYY-MM-DD"),
+    };
+  }
+
+  console.log("\n✅ Renewal is within 7 days - processing reminders...");
+  console.log("🔔 Processing reminders...");
+  console.log("Reminder schedule:", REMINDERS, "days before renewal\n");
+
   for (let i = 0; i < REMINDERS.length; i++) {
     const daysBefore = REMINDERS[i];
 
@@ -99,81 +118,44 @@ export const sendReminders = serve(async (context) => {
       reminderDate.isBefore(nowStartOfDay)
     );
 
-    // CHECK: If reminder is more than MAX_DELAY_DAYS in the future
-    if (daysUntilReminder > MAX_DELAY_DAYS) {
-      console.log("\n⚠️ QSTASH LIMIT: Reminder exceeds maximum delay");
-      console.log(`   - Days until reminder: ${daysUntilReminder}`);
-      console.log(`   - QStash max delay: ${MAX_DELAY_DAYS} days`);
-      console.log("   - SOLUTION: Sleep to intermediate checkpoint");
-
-      // Sleep to a point that's MAX_DELAY_DAYS from now, then re-evaluate
-      const intermediateDate = now
-        .add(MAX_DELAY_DAYS - 1, "day")
-        .startOf("day");
-
-      console.log(
-        `   - Sleeping to intermediate date: ${intermediateDate.format(
-          "YYYY-MM-DD"
-        )}`
-      );
-
-      await sleepUntilReminder(
-        context,
-        `Checkpoint before ${daysBefore}-day reminder`,
-        intermediateDate
-      );
-
-      console.log("\n⏰ WOKE UP at checkpoint! Re-checking reminder date...");
-
-      // After waking up, continue to next iteration to re-evaluate
-      // The workflow will be retriggered or continue processing
+    // Skip if reminder has passed
+    if (reminderDate.isBefore(nowStartOfDay)) {
+      console.log("\n⏭️ ACTION: Skip (reminder date has passed)");
       continue;
     }
 
-    // If reminder date is in the future (but within MAX_DELAY_DAYS), sleep until then
-    if (reminderDate.isAfter(nowStartOfDay)) {
-      console.log("\n⏰ ACTION: Sleep until reminder date");
-      console.log("   - Sleeping from:", now.format("YYYY-MM-DD HH:mm:ss"));
-      console.log(
-        "   - Sleeping until:",
-        reminderDate.format("YYYY-MM-DD HH:mm:ss")
-      );
-      console.log("   - Duration:", daysUntilReminder, "days");
-
-      await sleepUntilReminder(
-        context,
-        `Sleep until ${daysBefore} days before`,
-        reminderDate
-      );
-
-      console.log("\n⏰ WOKE UP! Time to send reminder");
-      console.log("   - Current time:", dayjs().format("YYYY-MM-DD HH:mm:ss"));
-
-      await triggerReminder(
-        context,
-        `${daysBefore} days before reminder`,
-        subscription
-      );
-    }
-    // If it's today, send immediately
-    else if (reminderDate.isSame(nowStartOfDay, "day")) {
+    // Send immediately if it's today
+    if (reminderDate.isSame(nowStartOfDay, "day")) {
       console.log("\n📧 ACTION: Send reminder NOW (it's the right day!)");
-
       await triggerReminder(
         context,
         `${daysBefore} days before reminder`,
         subscription
       );
+      continue;
     }
-    // If the date has passed, skip it
-    else {
-      console.log("\n⏭️ ACTION: Skip (reminder date has passed)");
-      console.log(
-        "   - Reminder was supposed to fire on:",
-        reminderDate.format("YYYY-MM-DD")
-      );
-      console.log("   - We're already past that date");
-    }
+
+    // Sleep until reminder date (we know it's within 7 days because of early exit)
+    console.log("\n⏰ ACTION: Sleep until reminder date");
+    console.log("   - Sleeping from:", now.format("YYYY-MM-DD HH:mm:ss"));
+    console.log(
+      "   - Sleeping until:",
+      reminderDate.format("YYYY-MM-DD HH:mm:ss")
+    );
+    console.log("   - Duration:", daysUntilReminder, "days");
+
+    await sleepUntilReminder(
+      context,
+      `Sleep until ${daysBefore} days before`,
+      reminderDate
+    );
+
+    console.log("\n⏰ WOKE UP! Time to send reminder");
+    await triggerReminder(
+      context,
+      `${daysBefore} days before reminder`,
+      subscription
+    );
   }
 
   console.log("\n╔════════════════════════════════════════════════╗");
