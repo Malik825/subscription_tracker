@@ -154,7 +154,7 @@ export const sendReminders = serve(async (context) => {
     await triggerReminder(
       context,
       `${daysBefore} days before reminder`,
-      subscription
+      subscription._id
     );
   }
 
