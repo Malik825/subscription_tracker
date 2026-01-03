@@ -42,11 +42,24 @@ export default function Notifications() {
   const [settings, setSettings] = useState(notificationSettings);
   const [activeTab, setActiveTab] = useState("all");
 
-  // RTK Query hooks
-  const { data: notificationsData, isLoading } = useGetNotificationsQuery({
-    read: activeTab === "unread" ? false : undefined,
+  const { data: notificationsData, isLoading } = useGetNotificationsQuery(
+    {
+      read: activeTab === "unread" ? false : undefined,
+    },
+    {
+      pollingInterval: 30000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+      refetchOnMountOrArgChange: true,
+    }
+  );
+
+  const { data: unreadCountData } = useGetUnreadCountQuery(undefined, {
+    pollingInterval: 30000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
-  const { data: unreadCountData } = useGetUnreadCountQuery();
+
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
