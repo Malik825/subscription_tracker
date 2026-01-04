@@ -3,6 +3,7 @@ import Subscription from "../models/subscription.model.js";
 import { workflowClient } from "../config/upsatsh.js";
 import { SERVER_URL } from "../config/env.js";
 import { sendWelcomeEmail } from "../utils/send.email.js";
+import notificationService from "../../services/notification.service.js";
 
 const FREE_USER_LIMIT = 10;
 
@@ -73,6 +74,11 @@ export const createSubscription = async (req, res, next) => {
     const updatedSubscription = await Subscription.findById(
       subscription._id
     ).populate("user", "username email");
+
+    await notificationService.createSubscriptionAddedNotification(
+      req.user._id,
+      updatedSubscription
+    );
 
     sendWelcomeEmail({
       to: req.user.email,
@@ -149,7 +155,7 @@ export const getUserSubscriptions = async (req, res, next) => {
     const filter = { user: req.params.id };
     if (status) filter.status = status;
     if (category) filter.category = category;
-    if (search) filter.username = { $regex: search, $options: "i" };
+    if (search) filter.name = { $regex: search, $options: "i" };
 
     const subscriptions = await Subscription.find(filter)
       .sort({ createdAt: -1 })
@@ -231,6 +237,12 @@ export const updateSubscription = async (req, res, next) => {
       throw error;
     }
 
+    const oldPrice = subscription.price;
+    const oldStatus = subscription.status;
+    const oldName = subscription.name;
+    const oldFrequency = subscription.frequency;
+    const oldCurrency = subscription.currency;
+
     const renewalDateChanged =
       req.body.renewalDate &&
       new Date(req.body.renewalDate).toISOString().split("T")[0] !==
@@ -241,6 +253,43 @@ export const updateSubscription = async (req, res, next) => {
       { ...req.body, updatedAt: Date.now() },
       { new: true, runValidators: true }
     ).populate("user", "username email");
+
+    if (req.body.price && req.body.price !== oldPrice) {
+      await notificationService.createPriceChangeNotification(
+        req.user._id,
+        updatedSubscription,
+        oldPrice,
+        req.body.price
+      );
+    }
+
+    if (req.body.status && req.body.status !== oldStatus) {
+      await notificationService.createStatusChangeNotification(
+        req.user._id,
+        updatedSubscription,
+        oldStatus,
+        req.body.status
+      );
+    }
+
+    const otherChanges = {};
+    if (req.body.name && req.body.name !== oldName) {
+      otherChanges.name = { old: oldName, new: req.body.name };
+    }
+    if (req.body.frequency && req.body.frequency !== oldFrequency) {
+      otherChanges.frequency = { old: oldFrequency, new: req.body.frequency };
+    }
+    if (req.body.currency && req.body.currency !== oldCurrency) {
+      otherChanges.currency = { old: oldCurrency, new: req.body.currency };
+    }
+
+    if (Object.keys(otherChanges).length > 0) {
+      await notificationService.createSubscriptionUpdatedNotification(
+        req.user._id,
+        updatedSubscription,
+        otherChanges
+      );
+    }
 
     if (renewalDateChanged && subscription.workflowStatus === "running") {
       try {
@@ -326,11 +375,12 @@ export const toggleSubscriptionStatus = async (req, res, next) => {
       throw error;
     }
 
+    const oldStatus = subscription.status;
     const newStatus =
-      subscription.status.toLowerCase() === "active" ? "Inactive" : "Active";
+      subscription.status.toLowerCase() === "active" ? "Suspended" : "Active";
 
     if (
-      newStatus === "Inactive" &&
+      newStatus === "Suspended" &&
       subscription.workflowRunId &&
       subscription.workflowStatus === "running"
     ) {
@@ -366,6 +416,13 @@ export const toggleSubscriptionStatus = async (req, res, next) => {
     const updatedSubscription = await Subscription.findById(
       req.params.id
     ).populate("user", "username email");
+
+    await notificationService.createStatusChangeNotification(
+      req.user._id,
+      updatedSubscription,
+      oldStatus,
+      newStatus
+    );
 
     res.status(200).json({
       success: true,
@@ -590,7 +647,7 @@ export const getSubscriptionStats = async (req, res, next) => {
       )
       .map((s) => ({
         id: s._id,
-        username: s.username,
+        name: s.name,
         renewalDate: s.renewalDate,
         daysUntil: dayjs(s.renewalDate).diff(dayjs(), "day"),
         price: s.price,
@@ -663,70 +720,70 @@ export const seedSubscriptions = async (req, res, next) => {
   try {
     const subscriptionData = [
       {
-        username: "Netflix",
+        name: "Netflix",
         price: 15.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Entertainment",
       },
       {
-        username: "Spotify",
+        name: "Spotify",
         price: 9.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Entertainment",
       },
       {
-        username: "GitHub Pro",
+        name: "GitHub Pro",
         price: 4.0,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        username: "Figma",
+        name: "Figma",
         price: 12.0,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        username: "Notion",
+        name: "Notion",
         price: 10.0,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        username: "Adobe Creative Cloud",
+        name: "Adobe Creative Cloud",
         price: 54.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Subscription",
       },
       {
-        username: "Amazon Prime",
+        name: "Amazon Prime",
         price: 139.0,
         currency: "USD",
         frequency: "Yearly",
         category: "Shopping",
       },
       {
-        username: "Uber One",
+        name: "Uber One",
         price: 9.99,
         currency: "USD",
         frequency: "Monthly",
         category: "Travel",
       },
       {
-        username: "HelloFresh",
+        name: "HelloFresh",
         price: 60.0,
         currency: "USD",
         frequency: "Weekly",
         category: "Food",
       },
       {
-        username: "Gym Membership",
+        name: "Gym Membership",
         price: 45.0,
         currency: "USD",
         frequency: "Monthly",
@@ -769,8 +826,10 @@ export const bulkUpdateStatus = async (req, res, next) => {
       throw error;
     }
 
-    if (!["Active", "Inactive"].includes(status)) {
-      const error = new Error('Status must be either "Active" or "Inactive"');
+    if (!["Active", "Suspended", "Cancelled"].includes(status)) {
+      const error = new Error(
+        'Status must be "Active", "Suspended", or "Cancelled"'
+      );
       error.statusCode = 400;
       throw error;
     }
@@ -796,7 +855,7 @@ export const bulkUpdateStatus = async (req, res, next) => {
       { status, updatedAt: Date.now() }
     );
 
-    if (status === "Inactive") {
+    if (status !== "Active") {
       const cancelPromises = subscriptions
         .filter((s) => s.workflowRunId && s.workflowStatus === "running")
         .map((s) => cancelWorkflow(s.workflowRunId));

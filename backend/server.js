@@ -17,6 +17,8 @@ import aiRoutes from "./routes/ai.route.js";
 import notificationRouter from "./routes/notifications.route.js";
 
 import { startReminderCron } from "./utils/check-reminders.cron.js";
+import notificationScheduler from "./utils/notificationScheduler.js"; // ← NEW: Import notification scheduler
+import settingsRouter from "./routes/settings.route.js";
 
 const app = express();
 
@@ -68,14 +70,32 @@ app.use("/api/v1/workflow", workflowRouter);
 app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/notifications", notificationRouter);
+app.use("/api/v1/settings", settingsRouter);
 
 app.use(errorHandler);
-
-startReminderCron();
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   await connectDB();
+
+  // ← NEW: Start notification scheduler after DB connection
+  notificationScheduler.start();
+});
+
+// Keep your existing cron (you may want to migrate this logic to the new scheduler later)
+startReminderCron();
+
+// ← NEW: Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully...");
+  notificationScheduler.stop();
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully...");
+  notificationScheduler.stop();
+  process.exit(0);
 });
 
 export default app;

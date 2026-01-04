@@ -36,26 +36,34 @@ export interface Notification {
 }
 
 export interface NotificationsResponse {
-  notifications: Notification[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    limit: number;
+  success: boolean;
+  message: string;
+  data: {
+    notifications: Notification[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      limit: number;
+    };
+    unreadCount: number;
   };
-  unreadCount: number;
 }
 
 export interface NotificationStats {
-  total: number;
-  unread: number;
-  read: number;
-  recentCount: number;
-  byType: Array<{
-    _id: string;
-    count: number;
-    unreadCount: number;
-  }>;
+  success: boolean;
+  message: string;
+  data: {
+    total: number;
+    unread: number;
+    read: number;
+    recentCount: number;
+    byType: Array<{
+      _id: string;
+      count: number;
+      unreadCount: number;
+    }>;
+  };
 }
 
 export const notificationsApi = createApi({
@@ -66,7 +74,6 @@ export const notificationsApi = createApi({
   }),
   tagTypes: ["Notifications", "UnreadCount", "Stats"],
   endpoints: (builder) => ({
-    // Get all notifications
     getNotifications: builder.query<
       NotificationsResponse,
       { read?: boolean; type?: string; limit?: number; page?: number }
@@ -76,27 +83,25 @@ export const notificationsApi = createApi({
         params,
       }),
       providesTags: ["Notifications"],
+      keepUnusedDataFor: 60,
     }),
 
-    // Get single notification
     getNotificationById: builder.query<{ data: Notification }, string>({
       query: (id) => `/${id}`,
       providesTags: (_result, _error, id) => [{ type: "Notifications", id }],
     }),
 
-    // Get unread count
     getUnreadCount: builder.query<{ data: { unreadCount: number } }, void>({
       query: () => "/unread/count",
       providesTags: ["UnreadCount"],
+      keepUnusedDataFor: 60,
     }),
 
-    // Get notification stats
     getNotificationStats: builder.query<{ data: NotificationStats }, void>({
       query: () => "/stats",
       providesTags: ["Stats"],
     }),
 
-    // Create notification
     createNotification: builder.mutation<
       { data: Notification },
       {
@@ -115,7 +120,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Mark as read
     markAsRead: builder.mutation<{ data: Notification }, string>({
       query: (id) => ({
         url: `/${id}/read`,
@@ -124,7 +128,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Mark as unread
     markAsUnread: builder.mutation<{ data: Notification }, string>({
       query: (id) => ({
         url: `/${id}/unread`,
@@ -133,7 +136,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Mark all as read
     markAllAsRead: builder.mutation<{ data: { modifiedCount: number } }, void>({
       query: () => ({
         url: "/read-all",
@@ -142,7 +144,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Bulk mark as read
     bulkMarkAsRead: builder.mutation<
       { data: { modifiedCount: number } },
       string[]
@@ -155,7 +156,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Delete notification
     deleteNotification: builder.mutation<void, string>({
       query: (id) => ({
         url: `/${id}`,
@@ -164,7 +164,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Delete all read
     deleteAllRead: builder.mutation<{ data: { deletedCount: number } }, void>({
       query: () => ({
         url: "/read",
@@ -173,7 +172,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Delete all notifications
     deleteAllNotifications: builder.mutation<
       { data: { deletedCount: number } },
       void
@@ -185,7 +183,6 @@ export const notificationsApi = createApi({
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
 
-    // Bulk delete
     bulkDeleteNotifications: builder.mutation<
       { data: { deletedCount: number } },
       string[]

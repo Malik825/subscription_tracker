@@ -2,6 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import { Button } from "@/components/ui/button";
 import { Zap, User, LogOut } from "lucide-react";
 import {
@@ -39,7 +40,6 @@ export function Navbar() {
     }
   };
 
-  // Get user initials for avatar
   const getUserInitials = () => {
     if (!user) return "U";
     if (user.username) return user.username.substring(0, 2).toUpperCase();
@@ -51,7 +51,6 @@ export function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
       <div className="w-full px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 max-w-7xl mx-auto">
-          {/* Logo */}
           <Link to="/" className="flex items-center gap-2 shrink-0 min-w-0">
             <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary shrink-0">
               <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
@@ -66,11 +65,8 @@ export function Navbar() {
               <ThemeToggle />
             </div>
 
-            {/* Show different content based on auth state */}
             {user ? (
-              // Logged In: Show user menu
               <>
-                {/* Desktop: User Dropdown */}
                 <div className="hidden sm:flex items-center gap-2">
                   {user.plan === "free" && (
                     <Link to="/dashboard">
@@ -79,6 +75,8 @@ export function Navbar() {
                       </Button>
                     </Link>
                   )}
+
+                  <NotificationBell iconSize="md" />
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -134,17 +132,18 @@ export function Navbar() {
                   </DropdownMenu>
                 </div>
 
-                {/* Mobile: Simple Dashboard Link */}
-                <Link to="/dashboard" className="sm:hidden shrink-0">
-                  <Button size="sm" className="bg-primary hover:bg-primary/90 h-9 px-3 text-sm">
-                    Dashboard
-                  </Button>
-                </Link>
+                <div className="flex sm:hidden items-center gap-1.5">
+                  <NotificationBell iconSize="sm" />
+                  
+                  <Link to="/dashboard" className="shrink-0">
+                    <Button size="sm" className="bg-primary hover:bg-primary/90 h-9 px-3 text-sm">
+                      Dashboard
+                    </Button>
+                  </Link>
+                </div>
               </>
             ) : (
-              // Not Logged In: Show auth buttons
               <>
-                {/* Desktop: Sign In + Get Started */}
                 <Link to="/auth" className="hidden sm:block shrink-0">
                   <Button variant="ghost" size="sm" className="h-9">
                     Sign In
@@ -156,7 +155,6 @@ export function Navbar() {
                   </Button>
                 </Link>
 
-                {/* Mobile: Single compact button */}
                 <Link to="/auth" className="sm:hidden shrink-0">
                   <Button size="sm" className="bg-primary hover:bg-primary/90 h-9 px-3 text-sm">
                     Sign In

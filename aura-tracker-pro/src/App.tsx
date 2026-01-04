@@ -1,55 +1,70 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 
-// Pages
+// Critical components - load immediately
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Subscriptions from "./pages/Subscriptions";
-import Analytics from "./pages/Analytics";
-import Notifications from "./pages/Notifications";
-import Calendar from "./pages/Calendar";
-import Settings from "./pages/Settings";
+import DashboardLayout from "./layouts/DashboardLayout";
 import NotFound from "./pages/NotFound";
 
-// Auth Pages
-import VerifyEmail from "./pages/Auth/VerifyEmail";
-import ForgotPassword from "./pages/Auth/ForgotPassword";
-import ResetPassword from "./pages/Auth/ResetPassword";
+// Settings Integration - load immediately
+import { Toaster } from "./components/ui/toaster";
+import SettingsInitializer from "./components/SettingsInitializer";
 
-// Layouts
-import DashboardLayout from "./layouts/DashboardLayout";
-import AIAssistant from "./pages/AIAssistant";
+// Lazy load pages that aren't immediately needed
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Subscriptions = lazy(() => import("./pages/Subscriptions"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Calendar = lazy(() => import("./pages/Calendar"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 
-/**
- * App Component
- * 
- * Pure routing logic - no providers, no auth checks
- * Auth checking happens in DashboardLayout (only for protected routes)
- */
+// Lazy load auth pages
+const VerifyEmail = lazy(() => import("./pages/Auth/VerifyEmail"));
+const ForgotPassword = lazy(() => import("./pages/Auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/Auth/ResetPassword"));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="flex flex-col items-center gap-4">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <p className="text-sm text-muted-foreground">Loading...</p>
+    </div>
+  </div>
+);
+
+
 const App = () => (
   <BrowserRouter>
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<Index />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+    <SettingsInitializer>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* Protected Routes - Auth check happens in DashboardLayout */}
-      <Route element={<DashboardLayout />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/subscriptions" element={<Subscriptions />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/calendar" element={<Calendar />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/ai-assistant" element={<AIAssistant />} />
-      </Route>
+          {/* Protected Routes - Auth check happens in DashboardLayout */}
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/subscriptions" element={<Subscriptions />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/ai-assistant" element={<AIAssistant />} />
+          </Route>
 
-      {/* 404 Fallback */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+          {/* 404 Fallback */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
+      <Toaster />
+    </SettingsInitializer>
   </BrowserRouter>
 );
 

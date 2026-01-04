@@ -261,12 +261,11 @@ notificationSchema.methods.markAsUnread = async function () {
 };
 
 // Pre-save hook to set expiration date (auto-delete after 30 days)
-notificationSchema.pre("save", function (next) {
+notificationSchema.pre("save", function () {
   if (this.isNew && !this.expiresAt) {
     // Set expiration to 30 days from creation
     this.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   }
-  next();
 });
 
 // Ensure virtual fields are included in JSON

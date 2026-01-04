@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   useGetNotificationsQuery,
@@ -41,12 +42,26 @@ const getNotificationIcon = (type: string) => {
 export default function Notifications() {
   const [settings, setSettings] = useState(notificationSettings);
   const [activeTab, setActiveTab] = useState("all");
+  const { toast } = useToast();
 
-  // RTK Query hooks
-  const { data: notificationsData, isLoading } = useGetNotificationsQuery({
-    read: activeTab === "unread" ? false : undefined,
+  const { data: notificationsData, isLoading } = useGetNotificationsQuery(
+    {
+      read: activeTab === "unread" ? false : undefined,
+    },
+    {
+      pollingInterval: 30000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+      refetchOnMountOrArgChange: true,
+    }
+  );
+
+  const { data: unreadCountData } = useGetUnreadCountQuery(undefined, {
+    pollingInterval: 30000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
-  const { data: unreadCountData } = useGetUnreadCountQuery();
+
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
@@ -54,27 +69,61 @@ export default function Notifications() {
   const notifications = notificationsData?.data?.notifications || [];
   const unreadCount = unreadCountData?.data?.unreadCount || 0;
 
+  console.log('📊 Notifications Debug:', {
+    rawData: notificationsData,
+    notifications,
+    unreadCount,
+    isLoading
+  });
+
   const handleMarkAsRead = async (id: string) => {
     try {
       await markAsRead(id).unwrap();
+      toast({
+        title: "Marked as read",
+        description: "Notification has been marked as read",
+      });
     } catch (error) {
       console.error("Failed to mark as read:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to mark notification as read",
+      });
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       await markAllAsRead().unwrap();
+      toast({
+        title: "All marked as read",
+        description: "All notifications have been marked as read",
+      });
     } catch (error) {
       console.error("Failed to mark all as read:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to mark all notifications as read",
+      });
     }
   };
 
   const handleDeleteNotification = async (id: string) => {
     try {
       await deleteNotification(id).unwrap();
+      toast({
+        title: "Notification deleted",
+        description: "The notification has been successfully deleted",
+      });
     } catch (error) {
       console.error("Failed to delete notification:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete notification",
+      });
     }
   };
 
