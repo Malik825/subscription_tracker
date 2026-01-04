@@ -9,7 +9,7 @@ import NotFound from "./pages/NotFound";
 
 // Settings Integration - load immediately
 import { Toaster } from "./components/ui/toaster";
-import SettingsInitializer from "./components/settingsInitializer";
+import SettingsInitializer from "./components/SettingsInitializer";
 
 // Lazy load pages that aren't immediately needed
 const Dashboard = lazy(() => import("./pages/Dashboard"));
