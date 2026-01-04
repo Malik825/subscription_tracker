@@ -1,29 +1,16 @@
 import Notification from "../backend/models/notification.model.js";
 import User from "../backend/models/user.model.js";
 
-/**
- * ============================================
- * NOTIFICATION SERVICE
- * Handles all notification creation logic
- * ============================================
- */
 const user = User;
 class NotificationService {
-  /**
-   * Create a renewal reminder notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   * @param {number} daysUntilRenewal - Days until renewal
-   */
   async createRenewalReminder(userId, subscription, daysUntilRenewal) {
     try {
-      // Check if notification already exists for this subscription and day
       const existingNotification = await Notification.findOne({
         user: userId,
         subscription: subscription._id,
         type: "renewal",
         "metadata.daysUntilRenewal": daysUntilRenewal,
-        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
+        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
       });
 
       if (existingNotification) {
@@ -73,12 +60,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create trial ending notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   * @param {number} daysRemaining - Days remaining in trial
-   */
   async createTrialEndingNotification(userId, subscription, daysRemaining) {
     try {
       const existingNotification = await Notification.findOne({
@@ -128,13 +109,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create subscription status change notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   * @param {string} oldStatus - Previous status
-   * @param {string} newStatus - New status
-   */
   async createStatusChangeNotification(
     userId,
     subscription,
@@ -214,11 +188,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create subscription added notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   */
   async createSubscriptionAddedNotification(userId, subscription) {
     try {
       const notification = await Notification.create({
@@ -255,13 +224,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create price change notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   * @param {number} oldPrice - Previous price
-   * @param {number} newPrice - New price
-   */
   async createPriceChangeNotification(
     userId,
     subscription,
@@ -305,11 +267,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create payment failed notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   */
   async createPaymentFailedNotification(userId, subscription) {
     try {
       const notification = await Notification.create({
@@ -335,11 +292,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create payment success notification
-   * @param {ObjectId} userId - User ID
-   * @param {Object} subscription - Subscription object
-   */
   async createPaymentSuccessNotification(userId, subscription) {
     try {
       const notification = await Notification.create({
@@ -365,12 +317,6 @@ class NotificationService {
     }
   }
 
-  /**
-   * Create spending alert notification
-   * @param {ObjectId} userId - User ID
-   * @param {number} totalSpending - Total monthly spending
-   * @param {number} threshold - Spending threshold
-   */
   async createSpendingAlertNotification(userId, totalSpending, threshold) {
     try {
       const notification = await Notification.create({
@@ -397,10 +343,55 @@ class NotificationService {
     }
   }
 
-  /**
-   * Clean up old notifications (called by cron job)
-   * Deletes read notifications older than 30 days
-   */
+  async createSubscriptionUpdatedNotification(userId, subscription, changes) {
+    try {
+      const changesList = [];
+
+      if (changes.name) {
+        changesList.push(
+          `name from "${changes.name.old}" to "${changes.name.new}"`
+        );
+      }
+      if (changes.frequency) {
+        changesList.push(
+          `billing cycle from ${changes.frequency.old} to ${changes.frequency.new}`
+        );
+      }
+      if (changes.currency) {
+        changesList.push(
+          `currency from ${changes.currency.old} to ${changes.currency.new}`
+        );
+      }
+
+      if (changesList.length === 0) {
+        return null;
+      }
+
+      const changesText = changesList.join(", ");
+
+      const notification = await Notification.create({
+        user: userId,
+        subscription: subscription._id,
+        type: "info",
+        title: `${subscription.name} updated`,
+        message: `You updated ${changesText}.`,
+        metadata: {
+          subscriptionName: subscription.name,
+          changes: changes,
+        },
+        priority: "low",
+      });
+
+      console.log(
+        `✅ Created subscription update notification for ${subscription.name}`
+      );
+      return notification;
+    } catch (error) {
+      console.error("Error creating subscription update notification:", error);
+      throw error;
+    }
+  }
+
   async cleanupOldNotifications() {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -418,12 +409,7 @@ class NotificationService {
     }
   }
 
-  /**
-   * Get notification preferences for a user
-   * (Extend User model to add preferences later)
-   */
   async getUserNotificationPreferences(userId) {
-    // For now, return defaults. Later integrate with User model
     return {
       emailEnabled: true,
       inAppEnabled: true,
@@ -431,7 +417,7 @@ class NotificationService {
       trialReminders: true,
       priceChangeAlerts: true,
       paymentAlerts: true,
-      reminderDays: [7, 3, 1], // Days before renewal to send reminders
+      reminderDays: [7, 3, 1],
     };
   }
 }

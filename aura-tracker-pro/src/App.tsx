@@ -20,36 +20,43 @@ import ResetPassword from "./pages/Auth/ResetPassword";
 import DashboardLayout from "./layouts/DashboardLayout";
 import AIAssistant from "./pages/AIAssistant";
 
+// Settings Integration
+import { Toaster } from "./components/ui/toaster";
+import SettingsInitializer from "./components/settingsInitializer";
+
 /**
  * App Component
  * 
- * Pure routing logic - no providers, no auth checks
+ * Pure routing logic wrapped with settings synchronization
  * Auth checking happens in DashboardLayout (only for protected routes)
  */
 const App = () => (
   <BrowserRouter>
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/" element={<Index />} />
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+    <SettingsInitializer>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Index />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
-      {/* Protected Routes - Auth check happens in DashboardLayout */}
-      <Route element={<DashboardLayout />}>
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/subscriptions" element={<Subscriptions />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/calendar" element={<Calendar />} />
-        <Route path="/notifications" element={<Notifications />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/ai-assistant" element={<AIAssistant />} />
-      </Route>
+        {/* Protected Routes - Auth check happens in DashboardLayout */}
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/subscriptions" element={<Subscriptions />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/ai-assistant" element={<AIAssistant />} />
+        </Route>
 
-      {/* 404 Fallback */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* 404 Fallback */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <Toaster />
+    </SettingsInitializer>
   </BrowserRouter>
 );
 
