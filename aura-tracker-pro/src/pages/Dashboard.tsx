@@ -4,19 +4,22 @@ import { SubscriptionCard } from "@/components/SubscriptionCard";
 import { SpendingChart } from "@/components/SpendingChart";
 import { CategoryBreakdown } from "@/components/CategoryBreakdown";
 import { UpcomingRenewals } from "@/components/UpcomingRenewals";
-import { CreditCard, TrendingUp, Calendar, AlertTriangle, Database } from "lucide-react";
+import { CreditCard, TrendingUp, Calendar, AlertTriangle, Database, Loader2 } from "lucide-react";
 import { useSubscriptions, useSeedSubscriptions, useSubscriptionStats } from "@/hooks/useSubscriptions";
 import { useAuth } from "@/hooks/useAuth";
 import { useOutletContext } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { Loader2 } from "lucide-react";
+import CurrencyDisplay from "@/components/CurrencyDisplay";
+import { useSettings } from "@/hooks/use-settings";
 
 export default function Dashboard() {
   const { data: subscriptions, isLoading: isLoadingSubs } = useSubscriptions();
   const { data: stats, isLoading: isLoadingStats } = useSubscriptionStats();
   const { mutate: seed, isPending: isSeeding } = useSeedSubscriptions();
   const { user } = useAuth();
+  const { isPro, isTrial, getPlan, getCurrencySymbol } = useSettings();
   const { onUpgradeClick } = useOutletContext<{ onUpgradeClick: () => void }>();
 
   console.log("Dashboard - User:", user);
@@ -72,14 +75,28 @@ export default function Dashboard() {
       {/* Responsive container - full width with proper padding */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         
-        {/* Header Section - Stacked on mobile, row on desktop */}
+        {/* Header Section with Plan Badge */}
         <div className="flex flex-col gap-4 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <DashboardHeader
-              title="Dashboard"
-              subtitle="Track and manage all your subscriptions"
-              onUpgradeClick={onUpgradeClick}
-            />
+            <div className="flex items-center gap-3 flex-wrap">
+              <DashboardHeader
+                title="Dashboard"
+                subtitle="Track and manage all your subscriptions"
+                onUpgradeClick={onUpgradeClick}
+              />
+              {/* Plan Badge */}
+              {isTrial() && (
+                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
+                  Trial Account
+                </Badge>
+              )}
+              {isPro() && (
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                  {getPlan().toUpperCase()} Member
+                </Badge>
+              )}
+            </div>
+            
             {!isLoadingSubs && allSubscriptions.length === 0 && (
               <Button 
                 onClick={() => seed()} 
@@ -94,11 +111,11 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Stats Grid - Responsive columns */}
+        {/* Stats Grid - With Currency Display */}
         <div className="grid gap-3 sm:gap-4 lg:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6 sm:mb-8">
           <StatCard
             title="Total Monthly"
-            value={`$${(stats?.spending?.totalMonthly || 0).toFixed(2)}`}
+            value={stats?.spending?.totalMonthly || 0}
             change={{ value: 0, type: "increase" }}
             icon={CreditCard}
             delay={100}
@@ -118,9 +135,9 @@ export default function Dashboard() {
             delay={300}
           />
           <StatCard
-            title="Potential Savings"
-            value={`$${(stats?.spending?.totalYearly || 0).toFixed(2)}`}
-            description="Total Yearly Cost"
+            title="Total Yearly Cost"
+            value={<CurrencyDisplay amount={stats?.spending?.totalYearly || 0} />}
+            description={`Currency: ${getCurrencySymbol()}`}
             icon={AlertTriangle}
             delay={400}
           />
