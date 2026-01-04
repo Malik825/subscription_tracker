@@ -1,6 +1,25 @@
 import { useGetSettingsQuery } from '@/api/settingsApi';
 import { useMemo } from 'react';
 
+// Define proper types for notification settings
+interface NotificationSettings {
+  emailDigest?: boolean;
+  pushNotifications?: boolean;
+  renewalReminders?: boolean;
+  marketingEmails?: boolean;
+  paymentAlerts?: boolean;
+  spendingInsights?: boolean;
+  priceChangeAlerts?: boolean;
+  productUpdates?: boolean;
+  deliveryMethods?: {
+    email?: boolean;
+    push?: boolean;
+    inApp?: boolean;
+  };
+  renewalReminderTiming?: string;
+  [key: string]: boolean | string | object | undefined; // Index signature for dynamic access
+}
+
 interface Settings {
   profile?: {
     fullName?: string;
@@ -11,13 +30,15 @@ interface Settings {
     currency?: string;
     language?: string;
   };
-  notifications?: Record<string, boolean | any>;
+  notifications?: NotificationSettings;
   billing?: {
     plan?: string;
     billingCycle?: string;
     status?: string;
   };
 }
+
+type CurrencyCode = 'USD' | 'EUR' | 'GBP' | 'NGN' | 'GHS' | 'KES' | 'ZAR';
 
 /**
  * Custom hook to access user settings across the application
@@ -31,7 +52,7 @@ export const useSettings = () => {
     refetchOnReconnect: true,
   });
 
-  const settings = useMemo(() => settingsData?.data, [settingsData]);
+  const settings = useMemo(() => settingsData?.data as Settings | undefined, [settingsData]);
 
   // Extract commonly used settings for easy access
   const profile = useMemo(() => settings?.profile || {}, [settings]);
@@ -41,10 +62,10 @@ export const useSettings = () => {
 
   // Helper functions
   const getDarkMode = () => preferences?.darkMode ?? true;
-  const getCurrency = () => preferences?.currency || 'USD';
+  const getCurrency = (): CurrencyCode => (preferences?.currency as CurrencyCode) || 'USD';
   const getLanguage = () => preferences?.language || 'en';
   const getCurrencySymbol = () => {
-    const symbols = {
+    const symbols: Record<CurrencyCode, string> = {
       USD: '$',
       EUR: '€',
       GBP: '£',
@@ -56,8 +77,10 @@ export const useSettings = () => {
     return symbols[getCurrency()] || '$';
   };
 
-  const isNotificationEnabled = (type) => {
-    return notifications?.[type] ?? false;
+  const isNotificationEnabled = (type: string): boolean => {
+    if (!notifications) return false;
+    const value = notifications[type];
+    return typeof value === 'boolean' ? value : false;
   };
 
   const getPlan = () => billing?.plan || 'free';
