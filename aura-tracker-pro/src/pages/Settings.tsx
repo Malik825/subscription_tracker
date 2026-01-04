@@ -101,8 +101,8 @@ export default function Settings() {
                                         <h2 className="text-xl font-semibold mb-4">Public Profile</h2>
                                         <div className="flex items-center gap-6">
                                             <Avatar className="h-20 w-20 border-2 border-primary/20">
-                                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.fullName}`} />
-                                                <AvatarFallback>{user?.fullName?.charAt(0)}</AvatarFallback>
+                                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
+                                                <AvatarFallback>{user?.username?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-2">
                                                 <Button variant="outline" size="sm">Change Avatar</Button>
@@ -114,7 +114,7 @@ export default function Settings() {
                                     <div className="grid gap-4">
                                         <div className="grid gap-2">
                                             <Label htmlFor="name">Full Name</Label>
-                                            <Input id="name" defaultValue={user?.fullName} />
+                                            <Input id="name" defaultValue={user?.username} />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="email">Email Address</Label>
