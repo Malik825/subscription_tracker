@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Outlet, Navigate } from "react-router-dom";
+import { Outlet, Navigate, useLocation } from "react-router-dom";
 import { Sidebar } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -8,9 +8,10 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { useCheckAuthQuery } from "@/api/authApi";
 import { useVoiceFeedback } from "@/hooks/use-voice-feedback";
+
 /**
  * DashboardLayout Component
- * * Handles:
+ * Handles:
  * 1. Auth checking (global session observer)
  * 2. Protected route logic
  * 3. Global Voice Announcements for status changes
@@ -20,15 +21,19 @@ export default function DashboardLayout() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   
   // Voice Feedback Hook
-  const { announce } = useVoiceFeedback();
+  const { announce, notify } = useVoiceFeedback();
   
   // Auth Query
   const { data, isLoading, error } = useCheckAuthQuery();
   const user = data?.data?.user;
+  
+  // Location for route announcements
+  const location = useLocation();
 
   // Refs to prevent duplicate announcements
   const hasAnnouncedWelcome = useRef(false);
   const prevPlan = useRef<string | undefined>(undefined);
+  const prevPath = useRef<string>("");
 
   /**
    * Effect: Welcome Announcement
@@ -36,12 +41,26 @@ export default function DashboardLayout() {
    */
   useEffect(() => {
     if (user && !hasAnnouncedWelcome.current) {
-      announce(`Welcome back, ${user.username}.`);
+      const greeting = getGreeting();
+      announce(`${greeting}, ${user.username}. Welcome to your dashboard.`);
       hasAnnouncedWelcome.current = true;
-      // Initialize plan ref so we don't announce "plan changed" on first load
       prevPlan.current = user.plan;
     }
   }, [user, announce]);
+
+  /**
+   * Effect: Route Change Announcements
+   * Announces page navigation (excluding first load)
+   */
+  useEffect(() => {
+    if (prevPath.current && prevPath.current !== location.pathname) {
+      const pageName = getPageName(location.pathname);
+      if (pageName) {
+        announce(`Navigated to ${pageName} page.`);
+      }
+    }
+    prevPath.current = location.pathname;
+  }, [location.pathname, announce]);
 
   /**
    * Effect: Global Plan Observer
@@ -49,20 +68,55 @@ export default function DashboardLayout() {
    */
   useEffect(() => {
     if (user && prevPlan.current && prevPlan.current !== user.plan) {
-      announce(`Great news! Your account has been upgraded to the ${user.plan} plan.`);
+      notify(
+        `Congratulations! Your account has been upgraded to the ${user.plan} plan. You now have access to all premium features.`,
+        true // Play success sound
+      );
       prevPlan.current = user.plan;
     }
-  }, [user?.plan, announce]);
+  }, [user?.plan, notify]);
 
   /**
    * Effect: Session Security Observer
    * Triggers if the background auth check fails (session expiration)
    */
   useEffect(() => {
-    if (error) {
+    if (error && !isLoading) {
       announce("Your session has expired. Redirecting to login for your security.");
     }
-  }, [error, announce]);
+  }, [error, isLoading, announce]);
+
+  // Get greeting based on time of day
+  function getGreeting(): string {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  }
+
+  // Get readable page name from path
+  function getPageName(path: string): string | null {
+    const routes: Record<string, string> = {
+      '/dashboard': 'Dashboard',
+      '/subscriptions': 'Subscriptions',
+      '/analytics': 'Analytics',
+      '/settings': 'Settings',
+      '/categories': 'Categories',
+      '/notifications': 'Notifications'
+    };
+    return routes[path] || null;
+  }
+
+  // Handle upgrade modal with voice feedback
+  const handleUpgradeClick = () => {
+    setIsUpgradeModalOpen(true);
+    announce("Opening upgrade options.");
+  };
+
+  const handleUpgradeModalClose = () => {
+    setIsUpgradeModalOpen(false);
+    announce("Upgrade dialog closed.");
+  };
 
   if (isLoading) {
     return (
@@ -86,7 +140,7 @@ export default function DashboardLayout() {
       <aside className="hidden md:block fixed left-0 top-0 h-screen z-40">
         <Sidebar
           collapsed={collapsed}
-          onUpgradeClick={() => setIsUpgradeModalOpen(true)}
+          onUpgradeClick={handleUpgradeClick}
         />
       </aside>
 
@@ -122,7 +176,7 @@ export default function DashboardLayout() {
         )}
       >
         <div className="w-full h-full">
-          <Outlet context={{ onUpgradeClick: () => setIsUpgradeModalOpen(true) }} />
+          <Outlet context={{ onUpgradeClick: handleUpgradeClick }} />
         </div>
       </main>
 
@@ -134,7 +188,7 @@ export default function DashboardLayout() {
       {/* Global Upgrade Modal */}
       <UpgradeModal
         isOpen={isUpgradeModalOpen}
-        onClose={() => setIsUpgradeModalOpen(false)}
+        onClose={handleUpgradeModalClose}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { StatCard } from "@/components/StatCard";
 import { SubscriptionCard } from "@/components/SubscriptionCard";
@@ -11,6 +12,8 @@ import { useOutletContext } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
+import { useVoiceFeedback } from "@/hooks/use-voice-feedback";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const { data: subscriptions, isLoading: isLoadingSubs } = useSubscriptions();
@@ -18,10 +21,53 @@ export default function Dashboard() {
   const { mutate: seed, isPending: isSeeding } = useSeedSubscriptions();
   const { user } = useAuth();
   const { onUpgradeClick } = useOutletContext<{ onUpgradeClick: () => void }>();
+  const { announce, notify } = useVoiceFeedback();
+  const { toast } = useToast();
+
+  // Ref to prevent duplicate announcements
+  const hasAnnouncedDashboard = useRef(false);
 
   console.log("Dashboard - User:", user);
   console.log("Dashboard - Subscriptions:", subscriptions);
   console.log("Dashboard - Stats:", stats);
+
+  // Announce dashboard stats when loaded (once)
+  useEffect(() => {
+    if (stats && !isLoadingStats && !hasAnnouncedDashboard.current) {
+      const monthlySpending = (stats.spending?.totalMonthly || 0).toFixed(2);
+      const activeCount = stats.overview?.active || 0;
+      const upcomingCount = stats.upcomingRenewals?.length || 0;
+      const yearlyTotal = (stats.spending?.totalYearly || 0).toFixed(2);
+
+      announce(
+        `Dashboard loaded. You're spending $${monthlySpending} monthly across ${activeCount} active subscription${activeCount !== 1 ? 's' : ''}. ` +
+        `${upcomingCount} renewal${upcomingCount !== 1 ? 's' : ''} coming up. Yearly total: $${yearlyTotal}.`
+      );
+      
+      hasAnnouncedDashboard.current = true;
+    }
+  }, [stats, isLoadingStats, announce]);
+
+  // Handle seed data with voice feedback
+  const handleSeedData = () => {
+    seed(undefined, {
+      onSuccess: () => {
+        notify("Sample subscription data added successfully. Your dashboard is now populated with example subscriptions.", true);
+        toast({
+          title: "Data Seeded Successfully",
+          description: "Sample subscriptions have been added to your account"
+        });
+      },
+      onError: () => {
+        announce("Failed to seed data. Please try again.");
+        toast({
+          title: "Seed Failed",
+          description: "Unable to add sample data",
+          variant: "destructive"
+        });
+      }
+    });
+  };
 
   // Transform data for charts
   const spendingData = stats?.spending.byCategory
@@ -82,7 +128,7 @@ export default function Dashboard() {
             />
             {!isLoadingSubs && allSubscriptions.length === 0 && (
               <Button 
-                onClick={() => seed()} 
+                onClick={handleSeedData}
                 disabled={isSeeding} 
                 variant="outline" 
                 className="gap-2 w-full sm:w-auto sm:min-w-[140px]"
