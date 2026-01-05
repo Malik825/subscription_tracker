@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Bell, BellOff, Check, Clock, CreditCard, AlertTriangle, Trash2, Settings, Mail, Smartphone } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bell, BellOff, Check, Clock, CreditCard, AlertTriangle, Trash2, Settings, Mail, Smartphone, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -13,14 +13,10 @@ import {
   useDeleteNotificationMutation,
   type Notification,
 } from "@/api/notificationsApi";
+import { toggleSound, playSound, updateUnreadCount, setSoundEnabled } from "@/features/auth/notificationSoundSlice";
+import { useAppDispatch, useAppSelector } from "@/redux";
+import { useGetUserPreferencesQuery, useUpdateUserPreferenceMutation } from "@/api/userPreferenceApi";
 
-const notificationSettings = [
-  { id: "renewal_reminders", label: "Renewal Reminders", description: "Get notified before subscriptions renew", enabled: true },
-  { id: "payment_alerts", label: "Payment Alerts", description: "Notifications for successful and failed payments", enabled: true },
-  { id: "spending_insights", label: "Spending Insights", description: "Weekly spending summaries and unusual activity", enabled: true },
-  { id: "price_changes", label: "Price Change Alerts", description: "Get notified when subscription prices change", enabled: false },
-  { id: "new_features", label: "Product Updates", description: "New features and improvements", enabled: false },
-];
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -39,8 +35,63 @@ const getNotificationIcon = (type: string) => {
 };
 
 export default function Notifications() {
-  const [settings, setSettings] = useState(notificationSettings);
+  const dispatch = useAppDispatch();
+  const soundEnabled = useAppSelector((state) => state.notificationSound.soundEnabled);
+
   const [activeTab, setActiveTab] = useState("all");
+
+  // Fetch user preferences
+  const { data: preferencesData, isLoading: preferencesLoading } = useGetUserPreferencesQuery();
+  const [updatePreference] = useUpdateUserPreferenceMutation();
+
+  // Sync Redux state with backend preferences on load
+  useEffect(() => {
+    if (preferencesData?.data?.soundNotifications !== undefined) {
+      dispatch(setSoundEnabled(preferencesData.data.soundNotifications));
+    }
+  }, [preferencesData, dispatch]);
+
+  // Build settings array from preferences
+  const settings = preferencesData?.data
+    ? [
+        {
+          id: "soundNotifications",
+          label: "Sound Notifications",
+          description: "Play sound when new notifications arrive",
+          enabled: preferencesData.data.soundNotifications,
+        },
+        {
+          id: "renewalReminders",
+          label: "Renewal Reminders",
+          description: "Get notified before subscriptions renew",
+          enabled: preferencesData.data.renewalReminders,
+        },
+        {
+          id: "paymentAlerts",
+          label: "Payment Alerts",
+          description: "Notifications for successful and failed payments",
+          enabled: preferencesData.data.paymentAlerts,
+        },
+        {
+          id: "spendingInsights",
+          label: "Spending Insights",
+          description: "Weekly spending summaries and unusual activity",
+          enabled: preferencesData.data.spendingInsights,
+        },
+        {
+          id: "priceChanges",
+          label: "Price Change Alerts",
+          description: "Get notified when subscription prices change",
+          enabled: preferencesData.data.priceChanges,
+        },
+        {
+          id: "newFeatures",
+          label: "Product Updates",
+          description: "New features and improvements",
+          enabled: preferencesData.data.newFeatures,
+        },
+      ]
+    : [];
 
   const { data: notificationsData, isLoading } = useGetNotificationsQuery(
     {
@@ -64,8 +115,12 @@ export default function Notifications() {
   const [markAllAsRead] = useMarkAllAsReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
 
-  const notifications = notificationsData?.data?.notifications || [];
+  const notifications = notificationsData?.notifications || [];
   const unreadCount = unreadCountData?.data?.unreadCount || 0;
+
+  useEffect(() => {
+    dispatch(updateUnreadCount(unreadCount));
+  }, [unreadCount, dispatch]);
 
   const handleMarkAsRead = async (id: string) => {
     try {
@@ -91,10 +146,34 @@ export default function Notifications() {
     }
   };
 
-  const toggleSetting = (id: string) => {
-    setSettings((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
-    );
+  const toggleSetting = async (id: string) => {
+    if (id === "soundNotifications") {
+      const newValue = !soundEnabled;
+      dispatch(toggleSound());
+      try {
+        await updatePreference({ key: "soundNotifications", value: newValue });
+      } catch (error) {
+        console.error("Failed to update sound preference:", error);
+        // Revert on error
+        dispatch(toggleSound());
+      }
+    } else {
+      const currentSetting = settings.find((s) => s.id === id);
+      if (currentSetting) {
+        try {
+          await updatePreference({
+            key: id as any,
+            value: !currentSetting.enabled,
+          });
+        } catch (error) {
+          console.error("Failed to update preference:", error);
+        }
+      }
+    }
+  };
+
+  const handleTestSound = () => {
+    dispatch(playSound());
   };
 
   const getNotificationStyle = (type: string) => {
@@ -261,76 +340,114 @@ export default function Notifications() {
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-6">
-              <div className="glass rounded-2xl p-6 animate-fade-in">
-                <h3 className="text-lg font-semibold mb-6">Notification Preferences</h3>
-                <div className="space-y-6">
-                  {settings.map((setting) => (
-                    <div key={setting.id} className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <label className="font-medium">{setting.label}</label>
-                        <p className="text-sm text-muted-foreground">{setting.description}</p>
-                      </div>
-                      <Switch checked={setting.enabled} onCheckedChange={() => toggleSetting(setting.id)} />
-                    </div>
-                  ))}
+              {preferencesLoading ? (
+                <div className="glass rounded-2xl p-12 text-center">
+                  <p className="text-muted-foreground">Loading preferences...</p>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="glass rounded-2xl p-6 animate-fade-in">
+                    <h3 className="text-lg font-semibold mb-6">Notification Preferences</h3>
+                    <div className="space-y-6">
+                      {settings.map((setting) => (
+                        <div key={setting.id} className="flex items-center justify-between">
+                          <div className="space-y-0.5">
+                            <label className="font-medium">{setting.label}</label>
+                            <p className="text-sm text-muted-foreground">{setting.description}</p>
+                          </div>
+                          <Switch checked={setting.enabled} onCheckedChange={() => toggleSetting(setting.id)} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="glass rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "100ms" }}>
-                <h3 className="text-lg font-semibold mb-6">Delivery Methods</h3>
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
-                        <Mail className="h-5 w-5 text-primary" />
+                  <div className="glass rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "100ms" }}>
+                    <h3 className="text-lg font-semibold mb-6">Delivery Methods</h3>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+                            <Mail className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Email Notifications</p>
+                            <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                          </div>
+                        </div>
+                        <Switch 
+                          checked={preferencesData?.data?.emailNotifications}
+                          onCheckedChange={() => toggleSetting("emailNotifications")}
+                        />
                       </div>
-                      <div>
-                        <p className="font-medium">Email Notifications</p>
-                        <p className="text-sm text-muted-foreground">Receive updates via email</p>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+                            <Smartphone className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Push Notifications</p>
+                            <p className="text-sm text-muted-foreground">Receive push notifications on mobile</p>
+                          </div>
+                        </div>
+                        <Switch 
+                          checked={preferencesData?.data?.pushNotifications}
+                          onCheckedChange={() => toggleSetting("pushNotifications")}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
+                            <Bell className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">In-App Notifications</p>
+                            <p className="text-sm text-muted-foreground">Show notifications within the app</p>
+                          </div>
+                        </div>
+                        <Switch 
+                          checked={preferencesData?.data?.inAppNotifications}
+                          onCheckedChange={() => toggleSetting("inAppNotifications")}
+                        />
                       </div>
                     </div>
-                    <Switch defaultChecked />
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
-                        <Smartphone className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Push Notifications</p>
-                        <p className="text-sm text-muted-foreground">Receive push notifications on mobile</p>
-                      </div>
-                    </div>
-                    <Switch />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
-                        <Bell className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">In-App Notifications</p>
-                        <p className="text-sm text-muted-foreground">Show notifications within the app</p>
-                      </div>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                </div>
-              </div>
 
-              <div className="glass rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "200ms" }}>
-                <h3 className="text-lg font-semibold mb-4">Renewal Reminder Timing</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Choose when you'd like to be reminded before a subscription renews
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {["1 day", "3 days", "1 week", "2 weeks"].map((option) => (
-                    <Button key={option} variant={option === "3 days" ? "default" : "outline"} size="sm">
-                      {option} before
+                  <div className="glass rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "200ms" }}>
+                    <h3 className="text-lg font-semibold mb-4">Test Notification Sound</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Preview how notification sounds will play when you receive alerts
+                    </p>
+                    <Button 
+                      onClick={handleTestSound} 
+                      variant="outline" 
+                      className="gap-2"
+                      disabled={!soundEnabled}
+                    >
+                      <Volume2 className="h-4 w-4" />
+                      Play Test Sound
                     </Button>
-                  ))}
-                </div>
-              </div>
+                    {!soundEnabled && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Enable sound notifications above to test
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="glass rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "300ms" }}>
+                    <h3 className="text-lg font-semibold mb-4">Renewal Reminder Timing</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Choose when you'd like to be reminded before a subscription renews
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {["1 day", "3 days", "1 week", "2 weeks"].map((option) => (
+                        <Button key={option} variant={option === "3 days" ? "default" : "outline"} size="sm">
+                          {option} before
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </TabsContent>
           </Tabs>
         </div>

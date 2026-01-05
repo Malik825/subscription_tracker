@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Bell, Check, Trash2, Settings } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Bell, Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +19,26 @@ import {
   type Notification,
 } from "@/api/notificationsApi";
 import { cn } from "@/lib/utils";
+import { playNotification, getSoundEnabled } from "@/lib/notificationSound";
 
 interface NotificationBellProps {
   iconSize?: "sm" | "md";
 }
 
+const NOTIFICATION_STYLES: Record<Notification["type"], string> = {
+  warning: "bg-yellow-500/10 border-l-2 border-l-yellow-500",
+  trial_ending: "bg-yellow-500/10 border-l-2 border-l-yellow-500",
+  success: "bg-green-500/10 border-l-2 border-l-green-500",
+  renewal: "bg-primary/10 border-l-2 border-l-primary",
+  payment_failed: "bg-red-500/10 border-l-2 border-l-red-500",
+  reminder: "bg-blue-500/10 border-l-2 border-l-blue-500",
+  price_change: "bg-purple-500/10 border-l-2 border-l-purple-500",
+  info: "bg-muted/50 border-l-2 border-l-muted-foreground",
+};
+
 export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const prevCountRef = useRef<number>(0);
 
   const { data: unreadCountData } = useGetUnreadCountQuery(undefined, {
     pollingInterval: 30000,
@@ -47,38 +60,20 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
   const [markAllAsRead] = useMarkAllAsReadMutation();
 
   const unreadCount = unreadCountData?.data?.unreadCount || 0;
-  const notifications = notificationsData?.data?.notifications || [];
+  const notifications = notificationsData?.notifications || [];
 
-  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await markAsRead(id).unwrap();
-    } catch (error) {
-      console.error("Failed to mark as read:", error);
+  useEffect(() => {
+    if (unreadCount > prevCountRef.current && getSoundEnabled()) {
+      playNotification();
     }
-  };
+    prevCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const handleMarkAllAsRead = async () => {
     try {
       await markAllAsRead().unwrap();
     } catch (error) {
-      console.error("Failed to mark all as read:", error);
-    }
-  };
-
-  const getNotificationStyle = (type: Notification["type"]) => {
-    switch (type) {
-      case "warning":
-      case "trial_ending":
-        return "bg-yellow-500/10 border-l-2 border-l-yellow-500";
-      case "success":
-        return "bg-green-500/10 border-l-2 border-l-green-500";
-      case "renewal":
-        return "bg-primary/10 border-l-2 border-l-primary";
-      case "payment_failed":
-        return "bg-red-500/10 border-l-2 border-l-red-500";
-      default:
-        return "bg-muted/50 border-l-2 border-l-muted-foreground";
+      console.error(error);
     }
   };
 
@@ -104,13 +99,11 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
       <DropdownMenuContent align="end" className="w-80 sm:w-96">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <h3 className="font-semibold text-sm">Notifications</h3>
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {unreadCount} new
-              </Badge>
-            )}
-          </div>
+          {unreadCount > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {unreadCount} new
+            </Badge>
+          )}
         </div>
 
         {unreadCount > 0 && (
@@ -132,9 +125,7 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <Bell className="h-12 w-12 text-muted-foreground mb-3 opacity-50" />
               <p className="text-sm font-medium">No notifications</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                You're all caught up!
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">You're all caught up!</p>
             </div>
           ) : (
             <div className="py-2">
@@ -143,7 +134,7 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
                   key={notification._id}
                   className={cn(
                     "flex items-start gap-3 p-4 cursor-pointer focus:bg-accent/50",
-                    getNotificationStyle(notification.type),
+                    NOTIFICATION_STYLES[notification.type],
                     !notification.read && "bg-primary/5"
                   )}
                   onSelect={() => {
@@ -154,12 +145,7 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
                 >
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p
-                        className={cn(
-                          "text-sm leading-tight",
-                          !notification.read && "font-semibold"
-                        )}
-                      >
+                      <p className={cn("text-sm leading-tight", !notification.read && "font-semibold")}>
                         {notification.title}
                       </p>
                       {!notification.read && (
@@ -171,13 +157,10 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
                     </p>
                     <div className="flex items-center justify-between pt-1">
                       <p className="text-xs text-muted-foreground">
-                        {notification.timeAgo ||
-                          new Date(notification.createdAt).toLocaleDateString()}
+                        {notification.timeAgo || new Date(notification.createdAt).toLocaleDateString()}
                       </p>
                       {notification.priority === "high" && (
-                        <Badge variant="destructive" className="text-[10px] h-5 px-1.5">
-                          Urgent
-                        </Badge>
+                        <Badge variant="destructive" className="text-[10px] h-5 px-1.5">Urgent</Badge>
                       )}
                     </div>
                   </div>

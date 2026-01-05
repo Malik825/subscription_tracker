@@ -2,19 +2,21 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5500/api/v1";
 
+export type NotificationType =
+  | "renewal"
+  | "warning"
+  | "success"
+  | "reminder"
+  | "payment_failed"
+  | "price_change"
+  | "trial_ending"
+  | "info";
+
 export interface Notification {
   _id: string;
   user: string;
   subscription?: string;
-  type:
-    | "renewal"
-    | "warning"
-    | "success"
-    | "reminder"
-    | "payment_failed"
-    | "price_change"
-    | "trial_ending"
-    | "info";
+  type: NotificationType;
   title: string;
   message: string;
   read: boolean;
@@ -70,120 +72,46 @@ export const notificationsApi = createApi({
       NotificationsResponse,
       { read?: boolean; type?: string; limit?: number; page?: number }
     >({
-      query: (params) => ({
-        url: "",
-        params,
-      }),
+      query: (params) => ({ url: "", params }),
+      transformResponse: (response: { data: NotificationsResponse }) =>
+        response.data,
       providesTags: ["Notifications"],
       keepUnusedDataFor: 60,
     }),
-
     getNotificationById: builder.query<{ data: Notification }, string>({
       query: (id) => `/${id}`,
       providesTags: (_result, _error, id) => [{ type: "Notifications", id }],
     }),
-
     getUnreadCount: builder.query<{ data: { unreadCount: number } }, void>({
       query: () => "/unread/count",
       providesTags: ["UnreadCount"],
       keepUnusedDataFor: 60,
     }),
-
     getNotificationStats: builder.query<{ data: NotificationStats }, void>({
       query: () => "/stats",
       providesTags: ["Stats"],
     }),
-
     createNotification: builder.mutation<
       { data: Notification },
-      {
-        type: Notification["type"];
-        title: string;
-        message: string;
-        priority?: Notification["priority"];
-        metadata?: Notification["metadata"];
-      }
+      Partial<Notification>
     >({
-      query: (body) => ({
-        url: "",
-        method: "POST",
-        body,
-      }),
+      query: (body) => ({ url: "", method: "POST", body }),
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
-
     markAsRead: builder.mutation<{ data: Notification }, string>({
-      query: (id) => ({
-        url: `/${id}/read`,
-        method: "PATCH",
-      }),
+      query: (id) => ({ url: `/${id}/read`, method: "PATCH" }),
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
-
     markAsUnread: builder.mutation<{ data: Notification }, string>({
-      query: (id) => ({
-        url: `/${id}/unread`,
-        method: "PATCH",
-      }),
+      query: (id) => ({ url: `/${id}/unread`, method: "PATCH" }),
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
-
     markAllAsRead: builder.mutation<{ data: { modifiedCount: number } }, void>({
-      query: () => ({
-        url: "/read-all",
-        method: "PATCH",
-      }),
+      query: () => ({ url: "/read-all", method: "PATCH" }),
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
-
-    bulkMarkAsRead: builder.mutation<
-      { data: { modifiedCount: number } },
-      string[]
-    >({
-      query: (notificationIds) => ({
-        url: "/bulk/read",
-        method: "PATCH",
-        body: { notificationIds },
-      }),
-      invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
-    }),
-
     deleteNotification: builder.mutation<void, string>({
-      query: (id) => ({
-        url: `/${id}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
-    }),
-
-    deleteAllRead: builder.mutation<{ data: { deletedCount: number } }, void>({
-      query: () => ({
-        url: "/read",
-        method: "DELETE",
-      }),
-      invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
-    }),
-
-    deleteAllNotifications: builder.mutation<
-      { data: { deletedCount: number } },
-      void
-    >({
-      query: () => ({
-        url: "/all",
-        method: "DELETE",
-      }),
-      invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
-    }),
-
-    bulkDeleteNotifications: builder.mutation<
-      { data: { deletedCount: number } },
-      string[]
-    >({
-      query: (notificationIds) => ({
-        url: "/bulk",
-        method: "DELETE",
-        body: { notificationIds },
-      }),
+      query: (id) => ({ url: `/${id}`, method: "DELETE" }),
       invalidatesTags: ["Notifications", "UnreadCount", "Stats"],
     }),
   }),
@@ -198,9 +126,5 @@ export const {
   useMarkAsReadMutation,
   useMarkAsUnreadMutation,
   useMarkAllAsReadMutation,
-  useBulkMarkAsReadMutation,
   useDeleteNotificationMutation,
-  useDeleteAllReadMutation,
-  useDeleteAllNotificationsMutation,
-  useBulkDeleteNotificationsMutation,
 } = notificationsApi;

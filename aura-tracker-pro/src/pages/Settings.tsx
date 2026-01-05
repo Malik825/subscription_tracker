@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
     User,
     Settings as SettingsIcon,
@@ -15,26 +17,165 @@ import {
     LogOut,
     Moon,
     Globe,
-    HelpCircle
+    HelpCircle,
+    Volume2,
+    VolumeX,
+    Play,
+    Sparkles
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogoutMutation } from "@/api/authApi";
 import { useNavigate } from "react-router-dom";
+import { useVoiceFeedback } from "@/hooks/use-voice-feedback";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  getAvailableVoices, 
+  getSelectedVoice, 
+  setSelectedVoice,
+  testVoice,
+  getVoiceSettings,
+  setVoiceSettings,
+  getRecommendedVoices,
+  getVoiceQuality
+} from "@/lib/voiceUtils";
 
 export default function Settings() {
     const { user } = useAuth();
     const [logout] = useLogoutMutation();
     const navigate = useNavigate();
+    const { announce } = useVoiceFeedback();
+    const { toast } = useToast();
 
-   const handleLogout = async () => {
-    try {
-        await logout().unwrap();
-        navigate("/auth");
-    } catch (error) {
-        console.error("Logout failed:", error);
-        navigate("/auth"); // Navigate anyway
-    }
-};
+    // Load settings from localStorage
+    const [voiceEnabled, setVoiceEnabled] = useState(() => {
+        const saved = localStorage.getItem('voiceEnabled');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
+
+    const [soundEnabled, setSoundEnabled] = useState(() => {
+        const saved = localStorage.getItem('notificationSoundEnabled');
+        return saved !== "false"; // Matches your existing utility format
+    });
+
+    const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+    const [selectedVoiceName, setSelectedVoiceName] = useState<string>(() => {
+        return getSelectedVoice() || '';
+    });
+
+    const [voiceRate, setVoiceRate] = useState<number>(() => {
+        return getVoiceSettings().rate;
+    });
+
+    const [voicePitch, setVoicePitch] = useState<number>(() => {
+        return getVoiceSettings().pitch;
+    });
+
+    const [voiceVolume, setVoiceVolume] = useState<number>(() => {
+        return getVoiceSettings().volume;
+    });
+
+    // Load available voices
+    useEffect(() => {
+        const loadVoices = () => {
+            const voices = getRecommendedVoices();
+            setAvailableVoices(voices);
+            
+            // Set default voice if none selected
+            if (!selectedVoiceName && voices.length > 0) {
+                const defaultVoice = voices[0];
+                setSelectedVoiceName(defaultVoice.name);
+                setSelectedVoice(defaultVoice.name);
+            }
+        };
+
+        loadVoices();
+        
+        // Voices may load asynchronously
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+    }, []);
+
+    // Save settings to localStorage whenever they change
+    useEffect(() => {
+        localStorage.setItem('voiceEnabled', JSON.stringify(voiceEnabled));
+    }, [voiceEnabled]);
+
+    useEffect(() => {
+        localStorage.setItem('notificationSoundEnabled', soundEnabled.toString());
+    }, [soundEnabled]);
+
+    useEffect(() => {
+        if (selectedVoiceName) {
+            setSelectedVoice(selectedVoiceName);
+        }
+    }, [selectedVoiceName]);
+
+    useEffect(() => {
+        setVoiceSettings({ rate: voiceRate, pitch: voicePitch, volume: voiceVolume });
+    }, [voiceRate, voicePitch, voiceVolume]);
+
+    const handleVoiceToggle = (checked: boolean) => {
+        setVoiceEnabled(checked);
+        if (checked) {
+            announce("Voice feedback enabled");
+        }
+        toast({
+            title: checked ? "Voice Feedback Enabled" : "Voice Feedback Disabled",
+            description: checked ? "You will now hear audio announcements" : "Audio announcements are now off"
+        });
+    };
+
+    const handleSoundToggle = (checked: boolean) => {
+        setSoundEnabled(checked);
+        if (voiceEnabled) {
+            announce(checked ? "Sound notifications enabled" : "Sound notifications disabled");
+        }
+        toast({
+            title: checked ? "Sound Notifications Enabled" : "Sound Notifications Disabled",
+            description: checked ? "You will now hear notification sounds" : "Notification sounds are now off"
+        });
+    };
+
+    const handleVoiceChange = (voiceName: string) => {
+        setSelectedVoiceName(voiceName);
+        toast({
+            title: "Voice Changed",
+            description: "Click the play button to preview the new voice"
+        });
+    };
+
+    const handleTestVoice = () => {
+        if (selectedVoiceName) {
+            testVoice(
+                selectedVoiceName,
+                "Hello! This is how I sound. I will announce your subscription updates and actions."
+            );
+        }
+    };
+
+    const getVoiceDisplayName = (voice: SpeechSynthesisVoice) => {
+        const quality = getVoiceQuality(voice);
+        const qualityBadge = quality === 'high' ? ' ⭐' : quality === 'medium' ? ' •' : '';
+        return `${voice.name}${qualityBadge}`;
+    };
+
+    const handleLogout = async () => {
+        try {
+            await logout().unwrap();
+            navigate("/auth");
+        } catch (error) {
+            console.error("Logout failed:", error);
+            navigate("/auth");
+        }
+    };
 
     return (
         <div className="min-h-screen aura-bg">
@@ -168,6 +309,176 @@ export default function Settings() {
 
                             {/* Notifications Tab */}
                             <TabsContent value="notifications" className="space-y-6 mt-0 animate-fade-in">
+                                {/* Accessibility Settings */}
+                                <div className="glass p-6 rounded-2xl space-y-6">
+                                    <div>
+                                        <h2 className="text-xl font-semibold mb-2">Accessibility</h2>
+                                        <p className="text-sm text-muted-foreground">
+                                            Configure audio feedback and notification preferences
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    {voiceEnabled ? (
+                                                        <Volume2 className="h-4 w-4 text-primary" />
+                                                    ) : (
+                                                        <VolumeX className="h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                    <Label>Voice Feedback</Label>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Hear audio announcements for actions and updates
+                                                </p>
+                                            </div>
+                                            <Switch 
+                                                checked={voiceEnabled}
+                                                onCheckedChange={handleVoiceToggle}
+                                            />
+                                        </div>
+                                        
+                                        {voiceEnabled && (
+                                            <>
+                                                <Separator className="bg-white/5" />
+                                                
+                                                {/* Voice Selection */}
+                                                <div className="space-y-3">
+                                                    <Label className="flex items-center gap-2">
+                                                        <Sparkles className="h-4 w-4 text-primary" />
+                                                        Select Voice
+                                                    </Label>
+                                                    <div className="flex gap-2">
+                                                        <Select 
+                                                            value={selectedVoiceName} 
+                                                            onValueChange={handleVoiceChange}
+                                                        >
+                                                            <SelectTrigger className="flex-1">
+                                                                <SelectValue placeholder="Choose a voice" />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="max-h-[300px]">
+                                                                {availableVoices.map((voice) => (
+                                                                    <SelectItem key={voice.name} value={voice.name}>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span>{getVoiceDisplayName(voice)}</span>
+                                                                            <span className="text-xs text-muted-foreground">
+                                                                                ({voice.lang})
+                                                                            </span>
+                                                                        </div>
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={handleTestVoice}
+                                                            disabled={!selectedVoiceName}
+                                                        >
+                                                            <Play className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        ⭐ = High quality • • = Good quality
+                                                    </p>
+                                                </div>
+
+                                                <Separator className="bg-white/5" />
+
+                                                {/* Voice Speed */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label>Speech Rate</Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {voiceRate.toFixed(1)}x
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[voiceRate]}
+                                                        onValueChange={(value) => setVoiceRate(value[0])}
+                                                        min={0.5}
+                                                        max={2.0}
+                                                        step={0.1}
+                                                        className="w-full"
+                                                    />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>Slower</span>
+                                                        <span>Faster</span>
+                                                    </div>
+                                                </div>
+
+                                                <Separator className="bg-white/5" />
+
+                                                {/* Voice Pitch */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label>Voice Pitch</Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {voicePitch.toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[voicePitch]}
+                                                        onValueChange={(value) => setVoicePitch(value[0])}
+                                                        min={0.5}
+                                                        max={2.0}
+                                                        step={0.1}
+                                                        className="w-full"
+                                                    />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>Lower</span>
+                                                        <span>Higher</span>
+                                                    </div>
+                                                </div>
+
+                                                <Separator className="bg-white/5" />
+
+                                                {/* Voice Volume */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label>Voice Volume</Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {Math.round(voiceVolume * 100)}%
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[voiceVolume]}
+                                                        onValueChange={(value) => setVoiceVolume(value[0])}
+                                                        min={0.1}
+                                                        max={1.0}
+                                                        step={0.1}
+                                                        className="w-full"
+                                                    />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>Quiet</span>
+                                                        <span>Loud</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                        
+                                        <Separator className="bg-white/5" />
+                                        
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Bell className="h-4 w-4 text-muted-foreground" />
+                                                    <Label>Sound Notifications</Label>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Play sounds for important events and alerts
+                                                </p>
+                                            </div>
+                                            <Switch 
+                                                checked={soundEnabled}
+                                                onCheckedChange={handleSoundToggle}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Standard Notification Settings */}
                                 <div className="glass p-6 rounded-2xl space-y-6">
                                     <h2 className="text-xl font-semibold">Notification Settings</h2>
                                     <div className="space-y-4">
@@ -187,8 +498,12 @@ export default function Settings() {
                                     <h2 className="text-xl font-semibold">Current Plan</h2>
                                     <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border border-primary/20">
                                         <div>
-                                            <p className="font-bold text-lg text-primary">Pro Plan</p>
-                                            <p className="text-sm text-muted-foreground">Billed monthly</p>
+                                            <p className="font-bold text-lg text-primary">
+                                                {user?.plan === "free" ? "Free Plan" : "Pro Plan"}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {user?.plan === "free" ? "Limited features" : "Billed monthly"}
+                                            </p>
                                         </div>
                                         <Badge className="bg-primary text-primary-foreground">Active</Badge>
                                     </div>

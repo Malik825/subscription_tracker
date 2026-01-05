@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { loginSchema, registerSchema, LoginInput, RegisterInput } from "@/schemas/auth";
 import { useLoginMutation, useRegisterMutation } from "@/api/authApi";
+import { useVoiceFeedback } from "@/hooks/use-voice-feedback";
 
 
 export default function Auth() {
@@ -17,6 +18,7 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { announce } = useVoiceFeedback();
 
   // RTK Query hooks
   const [login, { isLoading: isLoginLoading }] = useLoginMutation();
@@ -39,32 +41,27 @@ export default function Auth() {
     },
   });
 
+ // Inside Auth.tsx
+
   const onSubmit = async (data: LoginInput | RegisterInput) => {
     try {
       if (isLogin) {
-        // Login
         await login(data as LoginInput).unwrap();
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
-        });
+        announce("Access granted. Welcome to your dashboard."); 
+        toast({ title: "Welcome back!", description: "You have successfully logged in." });
         navigate("/dashboard");
       } else {
-        // Register
         await register(data as RegisterInput).unwrap();
-        toast({
-          title: "Account created!",
-          description: "Please check your email to verify your account before logging in.",
-        });
+        // More descriptive for registration
+        announce("Account created successfully. Please check your email to verify your identity.");
+        toast({ title: "Account created!", description: "Check your email." });
         setIsLogin(true);
         reset();
       }
-    } catch (error) {
-      const errorMessage = 
-        error && typeof error === 'object' && 'data' in error && 
-        error.data && typeof error.data === 'object' && 'message' in error.data
-          ? String(error.data.message)
-          : "An unexpected error occurred.";
+    } catch (error: any) {
+      // Voice out the specific server error if available
+      const errorMessage = error?.data?.message || "Authentication failed. Please try again.";
+      announce(errorMessage); 
       
       toast({
         variant: "destructive",
@@ -76,9 +73,10 @@ export default function Auth() {
 
   const toggleAuthMode = (loginMode: boolean) => {
     setIsLogin(loginMode);
+    // Subtle voice cue for switching forms
+    announce(loginMode ? "Switching to sign in" : "Switching to sign up");
     reset();
   };
-
   return (
     <div className="min-h-screen flex aura-bg relative">
       {/* Back button */}
