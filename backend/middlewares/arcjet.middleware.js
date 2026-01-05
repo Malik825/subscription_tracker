@@ -1,7 +1,5 @@
 import aj from "../config/arcjet.js";
 
-// This middleware is used to protect your app from common attacks e.g. SQL injection
-// It is recommended to use this middleware in all routes
 export const arcjetMiddleware = async (req, res, next) => {
   try {
     const decision = await aj.protect(req, { requested: 1 });

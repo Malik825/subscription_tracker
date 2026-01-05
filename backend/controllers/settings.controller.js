@@ -1,20 +1,15 @@
-// @desc    Get user settings
-// @route   GET /api/settings
-
 import Settings from "../models/settings.model.js";
 import User from "../models/user.model.js";
 
-// @access  Private
 const getSettings = async (req, res) => {
   try {
     let settings = await Settings.findByUserId(req.user._id);
 
-    // If no settings exist, create default settings
     if (!settings) {
       settings = await Settings.create({
         userId: req.user._id,
         profile: {
-          fullName: req.user.fullName,
+          username: req.user.username,
         },
       });
     }
@@ -24,7 +19,6 @@ const getSettings = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Get settings error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to retrieve settings",
@@ -33,27 +27,23 @@ const getSettings = async (req, res) => {
   }
 };
 
-// @desc    Update profile settings
-// @route   PUT /api/settings/profile
-// @access  Private
 const updateProfile = async (req, res) => {
   try {
-    const { fullName, avatarUrl } = req.body;
+    const { username, avatarUrl } = req.body;
 
     const settings = await Settings.findOneAndUpdate(
       { userId: req.user._id },
       {
         $set: {
-          "profile.fullName": fullName,
+          "profile.username": username,
           "profile.avatarUrl": avatarUrl,
         },
       },
       { new: true, upsert: true, runValidators: true }
     );
 
-    // Also update user's fullName if provided
-    if (fullName) {
-      await User.findByIdAndUpdate(req.user._id, { fullName });
+    if (username) {
+      await User.findByIdAndUpdate(req.user._id, { username });
     }
 
     res.status(200).json({
@@ -62,7 +52,6 @@ const updateProfile = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Update profile error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update profile",
@@ -71,9 +60,6 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// @desc    Update account preferences
-// @route   PUT /api/settings/preferences
-// @access  Private
 const updatePreferences = async (req, res) => {
   try {
     const { darkMode, currency, language } = req.body;
@@ -95,7 +81,6 @@ const updatePreferences = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Update preferences error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update preferences",
@@ -104,9 +89,6 @@ const updatePreferences = async (req, res) => {
   }
 };
 
-// @desc    Update notification settings
-// @route   PUT /api/settings/notifications
-// @access  Private
 const updateNotifications = async (req, res) => {
   try {
     const {
@@ -124,7 +106,6 @@ const updateNotifications = async (req, res) => {
 
     const updateData = {};
 
-    // Update individual notification preferences
     if (emailDigest !== undefined)
       updateData["notifications.emailDigest"] = emailDigest;
     if (pushNotifications !== undefined)
@@ -142,7 +123,6 @@ const updateNotifications = async (req, res) => {
     if (productUpdates !== undefined)
       updateData["notifications.productUpdates"] = productUpdates;
 
-    // Update delivery methods
     if (deliveryMethods) {
       if (deliveryMethods.email !== undefined)
         updateData["notifications.deliveryMethods.email"] =
@@ -154,7 +134,6 @@ const updateNotifications = async (req, res) => {
           deliveryMethods.inApp;
     }
 
-    // Update reminder timing
     if (renewalReminderTiming)
       updateData["notifications.renewalReminderTiming"] = renewalReminderTiming;
 
@@ -170,7 +149,6 @@ const updateNotifications = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Update notifications error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update notification settings",
@@ -179,9 +157,6 @@ const updateNotifications = async (req, res) => {
   }
 };
 
-// @desc    Update billing settings
-// @route   PUT /api/settings/billing
-// @access  Private
 const updateBilling = async (req, res) => {
   try {
     const { plan, billingCycle, status } = req.body;
@@ -203,7 +178,6 @@ const updateBilling = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Update billing error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update billing settings",
@@ -212,14 +186,10 @@ const updateBilling = async (req, res) => {
   }
 };
 
-// @desc    Delete account
-// @route   DELETE /api/settings/account
-// @access  Private
 const deleteAccount = async (req, res) => {
   try {
     const { password } = req.body;
 
-    // Verify password before deleting
     const user = await User.findById(req.user._id).select("+password");
     const isPasswordCorrect = await user.comparePassword(password);
 
@@ -230,13 +200,9 @@ const deleteAccount = async (req, res) => {
       });
     }
 
-    // Delete user settings
     await Settings.findOneAndDelete({ userId: req.user._id });
-
-    // Delete user account
     await User.findByIdAndDelete(req.user._id);
 
-    // Clear cookie
     res.cookie("token", "", {
       httpOnly: true,
       expires: new Date(0),
@@ -247,7 +213,6 @@ const deleteAccount = async (req, res) => {
       message: "Account deleted successfully",
     });
   } catch (error) {
-    console.error("Delete account error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to delete account",
@@ -256,9 +221,6 @@ const deleteAccount = async (req, res) => {
   }
 };
 
-// @desc    Reset settings to default
-// @route   POST /api/settings/reset
-// @access  Private
 const resetSettings = async (req, res) => {
   try {
     const settings = await Settings.findOneAndUpdate(
@@ -297,7 +259,6 @@ const resetSettings = async (req, res) => {
       data: settings,
     });
   } catch (error) {
-    console.error("Reset settings error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to reset settings",

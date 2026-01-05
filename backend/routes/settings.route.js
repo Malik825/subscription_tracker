@@ -19,13 +19,10 @@ import {
 
 const settingsRouter = express.Router();
 
-// All routes require authentication
 settingsRouter.use(authMiddleware);
 
-// Get user settings
 settingsRouter.get("/", getSettings);
 
-// Update specific settings sections
 settingsRouter.put("/profile", validateProfile, updateProfile);
 settingsRouter.put("/preferences", validatePreferences, updatePreferences);
 settingsRouter.put(
@@ -35,7 +32,6 @@ settingsRouter.put(
 );
 settingsRouter.put("/billing", validateBilling, updateBilling);
 
-// Account management
 settingsRouter.delete("/account", validateDeleteAccount, deleteAccount);
 settingsRouter.post("/reset", resetSettings);
 

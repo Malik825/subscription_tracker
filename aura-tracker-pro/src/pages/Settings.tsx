@@ -28,12 +28,40 @@ import {
 } from "@/api/settingsApi";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { SerializedError } from "@reduxjs/toolkit";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import { useTheme } from "@/theme/theme-provider";
+
+// Type guard for API errors
+function isErrorWithMessage(error: unknown): error is { data?: { message?: string } } {
+    return (
+        typeof error === "object" &&
+        error !== null &&
+        "data" in error &&
+        typeof (error as { data?: unknown }).data === "object"
+    );
+}
+
+function getErrorMessage(error: FetchBaseQueryError | SerializedError | undefined): string {
+    if (!error) return "An unknown error occurred";
+    
+    if (isErrorWithMessage(error)) {
+        return "An error occurred";
+    }
+    
+    if ("message" in error && typeof error.message === "string") {
+        return error.message;
+    }
+    
+    return "An error occurred";
+}
 
 export default function Settings() {
     const { user } = useAuth();
     const [logout] = useLogoutMutation();
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { resolvedTheme, setTheme } = useTheme();
 
     // Fetch settings
     const { data: settingsData, isLoading: isLoadingSettings } = useGetSettingsQuery();
@@ -46,7 +74,7 @@ export default function Settings() {
     const [deleteAccount, { isLoading: isDeletingAccount }] = useDeleteAccountMutation();
 
     // Local state for form inputs
-    const [fullName, setFullName] = useState("");
+    const [username, setUsername] = useState("");
     const [deletePassword, setDeletePassword] = useState("");
 
     const handleLogout = async () => {
@@ -54,44 +82,65 @@ export default function Settings() {
             await logout().unwrap();
             navigate("/auth");
         } catch (error) {
-            console.error("Logout failed:", error);
+            
             navigate("/auth");
         }
     };
 
     const handleUpdateProfile = async () => {
+        if (!username.trim()) {
+            toast({
+                title: "Error",
+                description: "Please enter a valid name",
+                variant: "destructive",
+            });
+            return;
+        }
+
         try {
-            await updateProfile({ fullName }).unwrap();
+            await updateProfile({ username }).unwrap();
             toast({
                 title: "Success",
                 description: "Profile updated successfully",
             });
+            setUsername(""); // Clear input after successful update
         } catch (error) {
             toast({
                 title: "Error",
-                description: error?.data?.message || "Failed to update profile",
+                description: getErrorMessage(error as FetchBaseQueryError | SerializedError),
                 variant: "destructive",
             });
         }
     };
 
-    const handleToggleDarkMode = async (checked) => {
+    const handleToggleDarkMode = async (checked: boolean) => {
         try {
+            // Update theme immediately for instant feedback
+            setTheme(checked ? "dark" : "light");
+            
+            // Then save to backend
             await updatePreferences({ darkMode: checked }).unwrap();
+            
             toast({
                 title: "Success",
-                description: "Dark mode preference updated",
+                description: "Theme preference updated",
             });
         } catch (error) {
+            // Revert theme if API call fails
+            setTheme(!checked ? "dark" : "light");
+            
             toast({
                 title: "Error",
-                description: "Failed to update dark mode",
+                description: "Failed to update theme",
                 variant: "destructive",
             });
         }
     };
 
-    const handleToggleNotification = async (field, checked) => {
+    const handleToggleNotification = async (
+        field: "emailDigest" | "pushNotifications" | "renewalReminders" | "marketingEmails",
+        checked: boolean
+    ) => {
         try {
             await updateNotifications({ [field]: checked }).unwrap();
             toast({
@@ -127,7 +176,7 @@ export default function Settings() {
         } catch (error) {
             toast({
                 title: "Error",
-                description: error?.data?.message || "Failed to delete account",
+                description: getErrorMessage(error as FetchBaseQueryError | SerializedError),
                 variant: "destructive",
             });
         }
@@ -135,7 +184,7 @@ export default function Settings() {
 
     if (isLoadingSettings) {
         return (
-            <div className="min-h-screen aura-bg flex items-center justify-center">
+            <div className="flex items-center justify-center min-h-screen">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
@@ -206,8 +255,8 @@ export default function Settings() {
                                         <h2 className="text-xl font-semibold mb-4">Public Profile</h2>
                                         <div className="flex items-center gap-6">
                                             <Avatar className="h-20 w-20 border-2 border-primary/20">
-                                                <AvatarImage src={settings?.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.fullName}`} />
-                                                <AvatarFallback>{user?.fullName?.charAt(0)}</AvatarFallback>
+                                                <AvatarImage src={settings?.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
+                                                <AvatarFallback>{user?.username?.charAt(0) || 'U'}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-2">
                                                 <Button variant="outline" size="sm">Change Avatar</Button>
@@ -218,20 +267,23 @@ export default function Settings() {
 
                                     <div className="grid gap-4">
                                         <div className="grid gap-2">
-                                            <Label htmlFor="name">Full Name</Label>
+                                            <Label htmlFor="name">Username</Label>
                                             <Input 
                                                 id="name" 
-                                                defaultValue={user?.fullName}
-                                                onChange={(e) => setFullName(e.target.value)}
+                                                defaultValue={user?.username}
+                                                onChange={(e) => setUsername(e.target.value)}
+                                                placeholder="Enter your username"
                                             />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="email">Email Address</Label>
                                             <Input id="email" defaultValue={user?.email} disabled />
+                                            <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                                         </div>
                                         <Button 
                                             onClick={handleUpdateProfile}
-                                            disabled={isUpdatingProfile || !fullName}
+                                            disabled={isUpdatingProfile || !username}
+                                            className="w-full"
                                         >
                                             {isUpdatingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                             Save Changes
@@ -251,10 +303,12 @@ export default function Settings() {
                                                 <Moon className="h-4 w-4 text-muted-foreground" />
                                                 <Label>Dark Mode</Label>
                                             </div>
-                                            <p className="text-sm text-muted-foreground">Ensure that dark mode is always enabled</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Currently: {resolvedTheme === "dark" ? "Dark" : "Light"} mode
+                                            </p>
                                         </div>
                                         <Switch 
-                                            checked={settings?.preferences?.darkMode ?? true}
+                                            checked={resolvedTheme === "dark"}
                                             onCheckedChange={handleToggleDarkMode}
                                             disabled={isUpdatingPreferences}
                                         />
