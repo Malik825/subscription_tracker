@@ -60,7 +60,7 @@ app.use(cookieParser());
 app.use(arcjetMiddleware);
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Welcome to Subscription Tracker App");
 });
 
 app.use("/api/v1/auth", authRouter);

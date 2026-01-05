@@ -8,7 +8,6 @@ const settingsSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
-    // Profile Settings
     profile: {
       fullName: {
         type: String,
@@ -19,7 +18,6 @@ const settingsSchema = new mongoose.Schema(
         default: null,
       },
     },
-    // Account Preferences
     preferences: {
       darkMode: {
         type: Boolean,
