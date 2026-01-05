@@ -38,13 +38,13 @@ interface ResetPasswordData {
 export const authApi = createApi({
   reducerPath: "authApi",
   baseQuery: fetchBaseQuery({
-      baseUrl: import.meta.env.VITE_API_URL || "/api/v1",
-       credentials: "include",
+    baseUrl: import.meta.env.VITE_API_URL || "/api/v1",
+    credentials: "include",
     prepareHeaders: (headers) => {
       return headers;
     },
   }),
-  tagTypes: ["User"],
+  tagTypes: ["User", "Settings"],
   endpoints: (builder) => ({
     register: builder.mutation<AuthResponse, RegisterInput>({
       query: (data) => ({

@@ -1,18 +1,7 @@
 import mongoose from "mongoose";
 
-/**
- * @typedef {Object} NotificationMetadata
- * @property {number} [amount]
- * @property {string} [subscriptionName]
- * @property {Date} [renewalDate]
- * @property {number} [oldPrice]
- * @property {number} [newPrice]
- * @property {number} [daysUntilRenewal]
- */
-
 const notificationSchema = new mongoose.Schema(
   {
-    // User who owns this notification
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -20,31 +9,27 @@ const notificationSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Related subscription (if applicable)
     subscription: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Subscription",
       default: null,
     },
 
-    // Notification type
     type: {
       type: String,
       enum: [
-        "renewal", // Subscription renewal reminder
-        "warning", // Unusual activity, price changes, trial ending
-        "success", // Payment successful
-        "reminder", // General reminder
-        "payment_failed", // Payment failed
-        "price_change", // Price increase/decrease
-        "trial_ending", // Free trial ending soon
-        "info", // General information
+        "renewal",
+        "warning",
+        "success",
+        "reminder",
+        "payment_failed",
+        "price_change",
+        "trial_ending",
       ],
       required: true,
       index: true,
     },
 
-    // Notification title
     title: {
       type: String,
       required: true,
@@ -52,7 +37,6 @@ const notificationSchema = new mongoose.Schema(
       maxlength: 200,
     },
 
-    // Notification message/description
     message: {
       type: String,
       required: true,
@@ -60,60 +44,52 @@ const notificationSchema = new mongoose.Schema(
       maxlength: 500,
     },
 
-    // Read status
     read: {
       type: Boolean,
       default: false,
       index: true,
     },
 
-    // Read timestamp
     readAt: {
       type: Date,
       default: null,
     },
 
-    // Additional metadata (optional)
     metadata: {
-      amount: Number, // For payment notifications
-      subscriptionName: String, // Cache subscription name
-      renewalDate: Date, // For renewal reminders
-      oldPrice: Number, // For price change notifications
-      newPrice: Number, // For price change notifications
-      daysUntilRenewal: Number, // For countdown reminders
+      amount: Number,
+      subscriptionName: String,
+      renewalDate: Date,
+      oldPrice: Number,
+      newPrice: Number,
+      daysUntilRenewal: Number,
     },
 
-    // Priority level
     priority: {
       type: String,
       enum: ["low", "medium", "high"],
       default: "medium",
     },
 
-    // Delivery status
     delivered: {
       type: Boolean,
       default: true,
     },
 
-    // Expiration date (optional - for auto-cleanup)
     expiresAt: {
       type: Date,
       default: null,
     },
   },
   {
-    timestamps: true, // Adds createdAt and updatedAt
+    timestamps: true,
   }
 );
 
-// Indexes for better query performance
 notificationSchema.index({ user: 1, createdAt: -1 });
 notificationSchema.index({ user: 1, read: 1 });
 notificationSchema.index({ user: 1, type: 1 });
-notificationSchema.index({ expiresAt: 1 }, { sparse: true }); // For TTL
+notificationSchema.index({ expiresAt: 1 }, { sparse: true });
 
-// Virtual for time ago (e.g., "2 hours ago")
 notificationSchema.virtual("timeAgo").get(function () {
   const now = new Date();
   const diff = now - this.createdAt;
@@ -127,7 +103,6 @@ notificationSchema.virtual("timeAgo").get(function () {
   return "Just now";
 });
 
-// Static method to create a renewal reminder notification
 notificationSchema.statics.createRenewalReminder = async function (
   userId,
   subscription,
@@ -153,7 +128,6 @@ notificationSchema.statics.createRenewalReminder = async function (
   });
 };
 
-// Static method to create payment success notification
 notificationSchema.statics.createPaymentSuccess = async function (
   userId,
   subscription,
@@ -173,7 +147,6 @@ notificationSchema.statics.createPaymentSuccess = async function (
   });
 };
 
-// Static method to create payment failed notification
 notificationSchema.statics.createPaymentFailed = async function (
   userId,
   subscription,
@@ -193,7 +166,6 @@ notificationSchema.statics.createPaymentFailed = async function (
   });
 };
 
-// Static method to create price change notification
 notificationSchema.statics.createPriceChange = async function (
   userId,
   subscription,
@@ -218,7 +190,6 @@ notificationSchema.statics.createPriceChange = async function (
   });
 };
 
-// Static method to create trial ending notification
 notificationSchema.statics.createTrialEnding = async function (
   userId,
   subscription,
@@ -240,7 +211,6 @@ notificationSchema.statics.createTrialEnding = async function (
   });
 };
 
-// Instance method to mark as read
 notificationSchema.methods.markAsRead = async function () {
   if (!this.read) {
     this.read = true;
@@ -250,7 +220,6 @@ notificationSchema.methods.markAsRead = async function () {
   return this;
 };
 
-// Instance method to mark as unread
 notificationSchema.methods.markAsUnread = async function () {
   if (this.read) {
     this.read = false;
@@ -260,15 +229,12 @@ notificationSchema.methods.markAsUnread = async function () {
   return this;
 };
 
-// Pre-save hook to set expiration date (auto-delete after 30 days)
 notificationSchema.pre("save", function () {
   if (this.isNew && !this.expiresAt) {
-    // Set expiration to 30 days from creation
     this.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   }
 });
 
-// Ensure virtual fields are included in JSON
 notificationSchema.set("toJSON", {
   virtuals: true,
   transform: (_doc, ret) => {
