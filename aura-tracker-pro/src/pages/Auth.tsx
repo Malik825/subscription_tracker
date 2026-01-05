@@ -10,6 +10,25 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { loginSchema, registerSchema, LoginInput, RegisterInput } from "@/schemas/auth";
 import { useLoginMutation, useRegisterMutation } from "@/api/authApi";
+import { SerializedError } from "@reduxjs/toolkit";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+
+// Type guard to check if error has data property
+function isFetchBaseQueryError(error: unknown): error is FetchBaseQueryError {
+  return typeof error === 'object' && error != null && 'status' in error;
+}
+
+// Type guard to check if error has message property
+function isErrorWithMessage(error: unknown): error is { data: { message: string } } {
+  return (
+    typeof error === 'object' &&
+    error != null &&
+    'data' in error &&
+    typeof (error as { data: unknown }).data === 'object' &&
+    (error as { data: unknown }).data != null &&
+    'message' in (error as { data: { message: unknown } }).data
+  );
+}
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -42,7 +61,7 @@ export default function Auth() {
     try {
       if (isLogin) {
         // Login - RTK Query automatically caches the user data
-        const result = await login(data as LoginInput).unwrap();
+        await login(data as LoginInput).unwrap();
         
         toast({
           title: "Welcome back!",
@@ -63,10 +82,16 @@ export default function Auth() {
         setIsLogin(true);
         reset();
       }
-    } catch (error: any) {
-      const errorMessage = 
-        error?.data?.message || 
-        "An unexpected error occurred.";
+    } catch (error: unknown) {
+      let errorMessage = "An unexpected error occurred.";
+      
+      if (isErrorWithMessage(error)) {
+        errorMessage = error.data.message;
+      } else if (isFetchBaseQueryError(error)) {
+        errorMessage = 'status' in error ? `Error: ${error.status}` : 'An error occurred';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       
       toast({
         variant: "destructive",
