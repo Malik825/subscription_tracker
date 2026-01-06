@@ -9,7 +9,7 @@ import {
 // Helper function to get voice enabled state from localStorage
 const getVoiceEnabled = (): boolean => {
   const saved = localStorage.getItem("voiceEnabled");
-  return saved !== null ? JSON.parse(saved) : true; // Default to true
+  return saved !== null ? JSON.parse(saved) : true;
 };
 
 // Helper function to set voice enabled state

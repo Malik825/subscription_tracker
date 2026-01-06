@@ -9,6 +9,7 @@ import { authApi } from "@/api/authApi";
 import { notificationsApi } from "./api/notificationsApi";
 import { set } from "date-fns";
 import { settingsApi } from "./api/settingsApi";
+import { userPreferencesApi } from "./api/userPreferenceApi";
 
 export const store = configureStore({
   reducer: {
@@ -17,6 +18,7 @@ export const store = configureStore({
     [authApi.reducerPath]: authApi.reducer,
     [notificationsApi.reducerPath]: notificationsApi.reducer,
     [settingsApi.reducerPath]: settingsApi.reducer,
+    [userPreferencesApi.reducerPath]: userPreferencesApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()

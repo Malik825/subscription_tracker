@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bell, BellOff, Check, Clock, CreditCard, AlertTriangle, Trash2, Settings, Mail, Smartphone, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -17,7 +17,7 @@ import {
 import { toggleSound, playSound, updateUnreadCount, setSoundEnabled } from "@/features/auth/notificationSoundSlice";
 import { useAppDispatch, useAppSelector } from "@/redux";
 import { useGetUserPreferencesQuery, useUpdateUserPreferenceMutation } from "@/api/userPreferenceApi";
-
+import { useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -38,15 +38,17 @@ const getNotificationIcon = (type: string) => {
 export default function Notifications() {
   const dispatch = useAppDispatch();
   const soundEnabled = useAppSelector((state) => state.notificationSound.soundEnabled);
+  const { vibrate, isMobile, notifyMobile } = useMobileVoiceFeedback();
 
   const [activeTab, setActiveTab] = useState("all");
   const { toast } = useToast();
+  const hasAnnouncedPage = useRef(false);
 
   // Fetch user preferences
   const { data: preferencesData, isLoading: preferencesLoading } = useGetUserPreferencesQuery();
   const [updatePreference] = useUpdateUserPreferenceMutation();
 
-  // Sync Redux state with backend preferences on load
+  // Sync Redux state with backend preferences on load (useEffect to avoid render-phase updates)
   useEffect(() => {
     if (preferencesData?.data?.soundNotifications !== undefined) {
       dispatch(setSoundEnabled(preferencesData.data.soundNotifications));
@@ -120,19 +122,27 @@ export default function Notifications() {
   const notifications = notificationsData?.data.notifications || [];
   const unreadCount = unreadCountData?.data?.unreadCount || 0;
 
+  // Update unread count in Redux (moved to useEffect)
   useEffect(() => {
     dispatch(updateUnreadCount(unreadCount));
   }, [unreadCount, dispatch]);
-  console.log('📊 Notifications Debug:', {
-    rawData: notificationsData,
-    notifications,
-    unreadCount,
-    isLoading
-  });
+
+  // Voice announcement for page load (once)
+  useEffect(() => {
+    if (!isLoading && !hasAnnouncedPage.current) {
+      const message = unreadCount > 0 
+        ? `Notifications page. You have ${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}.`
+        : "Notifications page. No unread notifications.";
+      notifyMobile(message, { withSound: false, withHaptic: false });
+      hasAnnouncedPage.current = true;
+    }
+  }, [isLoading, unreadCount, notifyMobile]);
 
   const handleMarkAsRead = async (id: string) => {
+    if (isMobile) vibrate('tap');
     try {
       await markAsRead(id).unwrap();
+      await notifyMobile("Marked as read", { withHaptic: true, hapticPattern: 'select' });
       toast({
         title: "Marked as read",
         description: "Notification has been marked as read",
@@ -148,8 +158,14 @@ export default function Notifications() {
   };
 
   const handleMarkAllAsRead = async () => {
+    if (isMobile) vibrate('tap');
     try {
       await markAllAsRead().unwrap();
+      await notifyMobile("All notifications marked as read", { 
+        withSound: true, 
+        withHaptic: true,
+        hapticPattern: 'success'
+      });
       toast({
         title: "All marked as read",
         description: "All notifications have been marked as read",
@@ -165,8 +181,14 @@ export default function Notifications() {
   };
 
   const handleDeleteNotification = async (id: string) => {
+    if (isMobile) vibrate('heavy');
     try {
       await deleteNotification(id).unwrap();
+      await notifyMobile("Notification deleted", { 
+        withSound: true, 
+        withHaptic: true,
+        hapticPattern: 'success'
+      });
       toast({
         title: "Notification deleted",
         description: "The notification has been successfully deleted",
@@ -182,15 +204,20 @@ export default function Notifications() {
   };
 
   const toggleSetting = async (id: string) => {
+    if (isMobile) vibrate('select');
+    
     if (id === "soundNotifications") {
       const newValue = !soundEnabled;
       dispatch(toggleSound());
       try {
         await updatePreference({ key: "soundNotifications", value: newValue });
+        await notifyMobile(
+          newValue ? "Sound notifications enabled" : "Sound notifications disabled",
+          { withHaptic: true, hapticPattern: 'toggleOn' }
+        );
       } catch (error) {
         console.error("Failed to update sound preference:", error);
-        // Revert on error
-        dispatch(toggleSound());
+        dispatch(toggleSound()); // Revert on error
       }
     } else {
       const currentSetting = settings.find((s) => s.id === id);
@@ -200,6 +227,10 @@ export default function Notifications() {
             key: id as any,
             value: !currentSetting.enabled,
           });
+          await notifyMobile(
+            `${currentSetting.label} ${!currentSetting.enabled ? 'enabled' : 'disabled'}`,
+            { withHaptic: true, hapticPattern: 'select' }
+          );
         } catch (error) {
           console.error("Failed to update preference:", error);
         }
@@ -208,6 +239,7 @@ export default function Notifications() {
   };
 
   const handleTestSound = () => {
+    if (isMobile) vibrate('tap');
     dispatch(playSound());
   };
 
@@ -347,7 +379,7 @@ export default function Notifications() {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="glass">
-              <TabsTrigger value="all" className="gap-2">
+              <TabsTrigger value="all" className="gap-2" onClick={() => isMobile && vibrate('tap')}>
                 <Bell className="h-4 w-4" />
                 All
                 {unreadCount > 0 && (
@@ -356,11 +388,11 @@ export default function Notifications() {
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="unread" className="gap-2">
+              <TabsTrigger value="unread" className="gap-2" onClick={() => isMobile && vibrate('tap')}>
                 <BellOff className="h-4 w-4" />
                 Unread
               </TabsTrigger>
-              <TabsTrigger value="settings" className="gap-2">
+              <TabsTrigger value="settings" className="gap-2" onClick={() => isMobile && vibrate('tap')}>
                 <Settings className="h-4 w-4" />
                 Settings
               </TabsTrigger>
@@ -475,7 +507,12 @@ export default function Notifications() {
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {["1 day", "3 days", "1 week", "2 weeks"].map((option) => (
-                        <Button key={option} variant={option === "3 days" ? "default" : "outline"} size="sm">
+                        <Button 
+                          key={option} 
+                          variant={option === "3 days" ? "default" : "outline"} 
+                          size="sm"
+                          onClick={() => isMobile && vibrate('tap')}
+                        >
                           {option} before
                         </Button>
                       ))}
