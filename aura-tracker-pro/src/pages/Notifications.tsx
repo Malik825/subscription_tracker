@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   useGetNotificationsQuery,
@@ -39,6 +40,7 @@ export default function Notifications() {
   const soundEnabled = useAppSelector((state) => state.notificationSound.soundEnabled);
 
   const [activeTab, setActiveTab] = useState("all");
+  const { toast } = useToast();
 
   // Fetch user preferences
   const { data: preferencesData, isLoading: preferencesLoading } = useGetUserPreferencesQuery();
@@ -115,34 +117,67 @@ export default function Notifications() {
   const [markAllAsRead] = useMarkAllAsReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
 
-  const notifications = notificationsData?.notifications || [];
+  const notifications = notificationsData?.data.notifications || [];
   const unreadCount = unreadCountData?.data?.unreadCount || 0;
 
   useEffect(() => {
     dispatch(updateUnreadCount(unreadCount));
   }, [unreadCount, dispatch]);
+  console.log('📊 Notifications Debug:', {
+    rawData: notificationsData,
+    notifications,
+    unreadCount,
+    isLoading
+  });
 
   const handleMarkAsRead = async (id: string) => {
     try {
       await markAsRead(id).unwrap();
+      toast({
+        title: "Marked as read",
+        description: "Notification has been marked as read",
+      });
     } catch (error) {
       console.error("Failed to mark as read:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to mark notification as read",
+      });
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
       await markAllAsRead().unwrap();
+      toast({
+        title: "All marked as read",
+        description: "All notifications have been marked as read",
+      });
     } catch (error) {
       console.error("Failed to mark all as read:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to mark all notifications as read",
+      });
     }
   };
 
   const handleDeleteNotification = async (id: string) => {
     try {
       await deleteNotification(id).unwrap();
+      toast({
+        title: "Notification deleted",
+        description: "The notification has been successfully deleted",
+      });
     } catch (error) {
       console.error("Failed to delete notification:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete notification",
+      });
     }
   };
 

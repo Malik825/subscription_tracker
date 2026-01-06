@@ -38,26 +38,34 @@ export interface Notification {
 }
 
 export interface NotificationsResponse {
-  notifications: Notification[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalCount: number;
-    limit: number;
+  success: boolean;
+  message: string;
+  data: {
+    notifications: Notification[];
+    pagination: {
+      currentPage: number;
+      totalPages: number;
+      totalCount: number;
+      limit: number;
+    };
+    unreadCount: number;
   };
-  unreadCount: number;
 }
 
 export interface NotificationStats {
-  total: number;
-  unread: number;
-  read: number;
-  recentCount: number;
-  byType: Array<{
-    _id: string;
-    count: number;
-    unreadCount: number;
-  }>;
+  success: boolean;
+  message: string;
+  data: {
+    total: number;
+    unread: number;
+    read: number;
+    recentCount: number;
+    byType: Array<{
+      _id: string;
+      count: number;
+      unreadCount: number;
+    }>;
+  };
 }
 
 export const notificationsApi = createApi({

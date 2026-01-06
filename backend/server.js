@@ -18,6 +18,7 @@ import notificationRouter from "./routes/notifications.route.js";
 
 import { startReminderCron } from "./utils/check-reminders.cron.js";
 import notificationScheduler from "./utils/notificationScheduler.js"; // ← NEW: Import notification scheduler
+import settingsRouter from "./routes/settings.route.js";
 
 const app = express();
 
@@ -59,7 +60,7 @@ app.use(cookieParser());
 app.use(arcjetMiddleware);
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("Welcome to Subscription Tracker App");
 });
 
 app.use("/api/v1/auth", authRouter);
@@ -69,6 +70,7 @@ app.use("/api/v1/workflow", workflowRouter);
 app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/notifications", notificationRouter);
+app.use("/api/v1/settings", settingsRouter);
 
 app.use(errorHandler);
 

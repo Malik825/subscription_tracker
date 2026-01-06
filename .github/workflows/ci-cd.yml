@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, dev, "feature/*"]
+    branches: [main, dev] # Only run on pushes to main and dev
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev] # Run on PRs targeting main or dev
 
 jobs:
   security-and-lint:
@@ -27,7 +27,7 @@ jobs:
 
       - name: Security Audit (Frontend)
         working-directory: ./aura-tracker-pro
-        run: npm audit --audit-level=high || true # Specific config to not fail immediately on modorate issues
+        run: npm audit --audit-level=high || true
 
       - name: Security Audit (Backend)
         working-directory: ./backend
@@ -56,28 +56,22 @@ jobs:
         working-directory: ./aura-tracker-pro
         run: npm run build
 
-      # Placeholder for Backend Build/Test if needed
-      # - name: Test Backend
-      #   working-directory: ./backend
-      #   run: npm test
-
   deploy:
     needs: build-and-test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Deploy to Production
         run: echo "Deploying to production server..."
-        # Add actual deployment steps here (e.g., SSH, Vercel CLI, Docker push)
 
   notify:
-    needs: [deploy]
+    needs: [build-and-test]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Notify Success
         if: ${{ success() }}
-        run: echo "Pipeline passed and deployed successfully!"
+        run: echo "Pipeline passed successfully!"
 
       - name: Notify Failure
         if: ${{ failure() }}

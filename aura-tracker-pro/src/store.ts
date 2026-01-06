@@ -6,8 +6,9 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 import authReducer from "@/features/auth/authSlice";
 import notificationSoundReducer from "@/features/auth/notificationSoundSlice";
 import { authApi } from "@/api/authApi";
-import { notificationsApi } from "@/api/notificationsApi";
-import { userPreferencesApi } from "./api/userPreferenceApi";
+import { notificationsApi } from "./api/notificationsApi";
+import { set } from "date-fns";
+import { settingsApi } from "./api/settingsApi";
 
 export const store = configureStore({
   reducer: {
@@ -15,14 +16,13 @@ export const store = configureStore({
     notificationSound: notificationSoundReducer,
     [authApi.reducerPath]: authApi.reducer,
     [notificationsApi.reducerPath]: notificationsApi.reducer,
-    [userPreferencesApi.reducerPath]: userPreferencesApi.reducer, // ⭐ ADD THIS
+    [settingsApi.reducerPath]: settingsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(
-      authApi.middleware,
-      notificationsApi.middleware,
-      userPreferencesApi.middleware // ⭐ ADD THIS
-    ),
+    getDefaultMiddleware()
+      .concat(authApi.middleware)
+      .concat(notificationsApi.middleware)
+      .concat(settingsApi.middleware),
 });
 
 setupListeners(store.dispatch);

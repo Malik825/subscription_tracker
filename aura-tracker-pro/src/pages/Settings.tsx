@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +22,9 @@ import {
     Volume2,
     VolumeX,
     Play,
-    Sparkles
+    Sparkles,
+    Smartphone,
+    Vibrate
 } from "lucide-react";
 import {
   Select,
@@ -33,7 +36,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useLogoutMutation } from "@/api/authApi";
 import { useNavigate } from "react-router-dom";
-import { useVoiceFeedback } from "@/hooks/use-voice-feedback";
 import { useToast } from "@/hooks/use-toast";
 import { 
   getAvailableVoices, 
@@ -45,12 +47,20 @@ import {
   getRecommendedVoices,
   getVoiceQuality
 } from "@/lib/voiceUtils";
+import { 
+  isMobileDevice, 
+  getHapticEnabled, 
+  setHapticEnabled,
+  haptic,
+  isHapticSupported
+} from "@/lib/hapticUtils";
+import { setMobileVoiceSettings, useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
 
 export default function Settings() {
     const { user } = useAuth();
     const [logout] = useLogoutMutation();
     const navigate = useNavigate();
-    const { announce } = useVoiceFeedback();
+    const { announce, vibrate, isMobile } = useMobileVoiceFeedback();
     const { toast } = useToast();
 
     // Load settings from localStorage
@@ -61,7 +71,21 @@ export default function Settings() {
 
     const [soundEnabled, setSoundEnabled] = useState(() => {
         const saved = localStorage.getItem('notificationSoundEnabled');
-        return saved !== "false"; // Matches your existing utility format
+        return saved !== "false";
+    });
+
+    const [hapticEnabled, setHapticEnabledState] = useState(() => {
+        return getHapticEnabled();
+    });
+
+    const [useBrevity, setUseBrevity] = useState(() => {
+        const saved = localStorage.getItem('mobileVoiceBrevity');
+        return saved === 'true';
+    });
+
+    const [autoReduceOnBattery, setAutoReduceOnBattery] = useState(() => {
+        const saved = localStorage.getItem('autoReduceVoice');
+        return saved !== 'false';
     });
 
     const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -113,6 +137,14 @@ export default function Settings() {
     }, [soundEnabled]);
 
     useEffect(() => {
+        setHapticEnabled(hapticEnabled);
+    }, [hapticEnabled]);
+
+    useEffect(() => {
+        setMobileVoiceSettings({ useBrevity, autoReduceOnBattery });
+    }, [useBrevity, autoReduceOnBattery]);
+
+    useEffect(() => {
         if (selectedVoiceName) {
             setSelectedVoice(selectedVoiceName);
         }
@@ -135,12 +167,51 @@ export default function Settings() {
 
     const handleSoundToggle = (checked: boolean) => {
         setSoundEnabled(checked);
+        if (isMobile) vibrate('select');
         if (voiceEnabled) {
             announce(checked ? "Sound notifications enabled" : "Sound notifications disabled");
         }
         toast({
             title: checked ? "Sound Notifications Enabled" : "Sound Notifications Disabled",
             description: checked ? "You will now hear notification sounds" : "Notification sounds are now off"
+        });
+    };
+
+    const handleHapticToggle = (checked: boolean) => {
+        setHapticEnabledState(checked);
+        if (checked && isMobile) {
+            haptic.success();
+        }
+        if (voiceEnabled) {
+            announce(checked ? "Haptic feedback enabled" : "Haptic feedback disabled");
+        }
+        toast({
+            title: checked ? "Haptic Feedback Enabled" : "Haptic Feedback Disabled",
+            description: checked ? "You will now feel vibrations on actions" : "Vibrations are now off"
+        });
+    };
+
+    const handleBrevityToggle = (checked: boolean) => {
+        setUseBrevity(checked);
+        if (isMobile) vibrate('select');
+        if (voiceEnabled) {
+            announce(checked ? "Brief mode enabled. Voice messages will be shorter." : "Brief mode disabled. Voice messages will be full length.");
+        }
+        toast({
+            title: checked ? "Brief Mode Enabled" : "Brief Mode Disabled",
+            description: checked ? "Voice messages will be concise" : "Voice messages will be detailed"
+        });
+    };
+
+    const handleBatteryToggle = (checked: boolean) => {
+        setAutoReduceOnBattery(checked);
+        if (isMobile) vibrate('select');
+        if (voiceEnabled) {
+            announce(checked ? "Battery saver enabled" : "Battery saver disabled");
+        }
+        toast({
+            title: checked ? "Battery Saver Enabled" : "Battery Saver Disabled",
+            description: checked ? "Voice will pause when battery is low" : "Voice will always play"
         });
     };
 
@@ -242,8 +313,8 @@ export default function Settings() {
                                         <h2 className="text-xl font-semibold mb-4">Public Profile</h2>
                                         <div className="flex items-center gap-6">
                                             <Avatar className="h-20 w-20 border-2 border-primary/20">
-                                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.fullName}`} />
-                                                <AvatarFallback>{user?.fullName?.charAt(0)}</AvatarFallback>
+                                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
+                                                <AvatarFallback>{user?.username?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-2">
                                                 <Button variant="outline" size="sm">Change Avatar</Button>
@@ -255,7 +326,7 @@ export default function Settings() {
                                     <div className="grid gap-4">
                                         <div className="grid gap-2">
                                             <Label htmlFor="name">Full Name</Label>
-                                            <Input id="name" defaultValue={user?.fullName} />
+                                            <Input id="name" defaultValue={user?.username} />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="email">Email Address</Label>
@@ -475,6 +546,66 @@ export default function Settings() {
                                                 onCheckedChange={handleSoundToggle}
                                             />
                                         </div>
+
+                                        {/* Mobile-specific settings */}
+                                        {isMobile && isHapticSupported() && (
+                                            <>
+                                                <Separator className="bg-white/5" />
+                                                
+                                                <div className="space-y-4 p-4 rounded-lg bg-primary/5 border border-primary/10">
+                                                    <div className="flex items-center gap-2 text-primary">
+                                                        <Smartphone className="h-4 w-4" />
+                                                        <span className="text-sm font-semibold">Mobile Settings</span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <Vibrate className="h-4 w-4 text-muted-foreground" />
+                                                                <Label>Haptic Feedback</Label>
+                                                            </div>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Vibrate on taps, swipes, and actions
+                                                            </p>
+                                                        </div>
+                                                        <Switch 
+                                                            checked={hapticEnabled}
+                                                            onCheckedChange={handleHapticToggle}
+                                                        />
+                                                    </div>
+
+                                                    <Separator className="bg-white/5" />
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <Label>Brief Voice Messages</Label>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Shorter announcements for faster feedback
+                                                            </p>
+                                                        </div>
+                                                        <Switch 
+                                                            checked={useBrevity}
+                                                            onCheckedChange={handleBrevityToggle}
+                                                        />
+                                                    </div>
+
+                                                    <Separator className="bg-white/5" />
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <Label>Battery Saver</Label>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Reduce voice when battery is low
+                                                            </p>
+                                                        </div>
+                                                        <Switch 
+                                                            checked={autoReduceOnBattery}
+                                                            onCheckedChange={handleBatteryToggle}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
 

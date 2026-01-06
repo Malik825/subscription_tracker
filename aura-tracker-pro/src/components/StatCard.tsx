@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
+import { ReactNode } from "react";
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: string | number | ReactNode; // Support ReactNode for components like CurrencyDisplay
   change?: {
     value: number;
     type: "increase" | "decrease" | "neutral";
@@ -23,6 +24,14 @@ export function StatCard({
   className,
   delay = 0,
 }: StatCardProps) {
+  // Helper to render value - format numbers to 2 decimal places
+  const renderValue = () => {
+    if (typeof value === 'number') {
+      return `$${value.toFixed(2)}`;
+    }
+    return value;
+  };
+
   return (
     <div
       className={cn(
@@ -34,7 +43,7 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
+          <p className="text-3xl font-bold tracking-tight">{renderValue()}</p>
           {change && (
             <div className="flex items-center gap-1 text-sm">
               <span

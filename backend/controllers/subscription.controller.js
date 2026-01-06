@@ -239,6 +239,9 @@ export const updateSubscription = async (req, res, next) => {
 
     const oldPrice = subscription.price;
     const oldStatus = subscription.status;
+    const oldName = subscription.name;
+    const oldFrequency = subscription.frequency;
+    const oldCurrency = subscription.currency;
 
     const renewalDateChanged =
       req.body.renewalDate &&
@@ -266,6 +269,25 @@ export const updateSubscription = async (req, res, next) => {
         updatedSubscription,
         oldStatus,
         req.body.status
+      );
+    }
+
+    const otherChanges = {};
+    if (req.body.name && req.body.name !== oldName) {
+      otherChanges.name = { old: oldName, new: req.body.name };
+    }
+    if (req.body.frequency && req.body.frequency !== oldFrequency) {
+      otherChanges.frequency = { old: oldFrequency, new: req.body.frequency };
+    }
+    if (req.body.currency && req.body.currency !== oldCurrency) {
+      otherChanges.currency = { old: oldCurrency, new: req.body.currency };
+    }
+
+    if (Object.keys(otherChanges).length > 0) {
+      await notificationService.createSubscriptionUpdatedNotification(
+        req.user._id,
+        updatedSubscription,
+        otherChanges
       );
     }
 
