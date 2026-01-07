@@ -31,6 +31,17 @@ interface SettingsResponse {
   };
 }
 
+interface NotificationsSettings {
+  emailDigest?: boolean;
+  pushNotifications?: boolean;
+  renewalReminders?: boolean;
+  marketingEmails?: boolean;
+  paymentAlerts?: boolean;
+  spendingInsights?: boolean;
+  priceChangeAlerts?: boolean;
+  productUpdates?: boolean;
+}
+
 export const settingsApi = createApi({
   reducerPath: "settingsApi",
   baseQuery: fetchBaseQuery({
@@ -75,7 +86,10 @@ export const settingsApi = createApi({
       invalidatesTags: ["Settings"],
     }),
 
-    updateNotifications: builder.mutation<SettingsResponse, any>({
+    updateNotifications: builder.mutation<
+      SettingsResponse,
+      NotificationsSettings
+    >({
       query: (data) => ({
         url: "/settings/notifications",
         method: "PUT",

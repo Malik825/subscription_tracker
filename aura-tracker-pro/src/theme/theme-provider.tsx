@@ -1,5 +1,7 @@
-import { useEffect, useState, useContext } from "react";
+
+import { useEffect, useState, useContext, useCallback } from "react";
 import { Theme, ThemeProviderContext } from "./theme-context";
+import { useUpdatePreferencesMutation } from "@/api/settingsApi";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -13,15 +15,17 @@ export function ThemeProvider({
   storageKey = "subtrack-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
+  // Initialize from localStorage
+  const [theme, setThemeState] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
   );
 
   const [resolvedTheme, setResolvedTheme] = useState<"dark" | "light">("dark");
+  const [updatePreferences] = useUpdatePreferencesMutation();
 
+  // Apply theme to DOM
   useEffect(() => {
     const root = window.document.documentElement;
-
     root.classList.remove("light", "dark");
 
     if (theme === "system") {
@@ -39,13 +43,57 @@ export function ThemeProvider({
     setResolvedTheme(theme);
   }, [theme]);
 
+  // Listen for system theme changes
+  useEffect(() => {
+    if (theme !== "system") return;
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      const systemTheme = e.matches ? "dark" : "light";
+      setResolvedTheme(systemTheme);
+      document.documentElement.classList.remove("light", "dark");
+      document.documentElement.classList.add(systemTheme);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, [theme]);
+
+  // Set theme with backend sync
+  const setTheme = useCallback(
+    async (newTheme: Theme, syncToBackend = true) => {
+      // Update local state immediately (optimistic update)
+      setThemeState(newTheme);
+      localStorage.setItem(storageKey, newTheme);
+
+      // Sync to backend if authenticated and enabled
+      if (syncToBackend) {
+        try {
+          const isDarkMode = newTheme === "dark" || 
+            (newTheme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          
+          await updatePreferences({ darkMode: isDarkMode }).unwrap();
+        } catch (error) {
+          // Silently fail - local state is already updated
+          console.warn("Failed to sync theme to backend:", error);
+        }
+      }
+    },
+    [storageKey, updatePreferences]
+  );
+
+  // Expose method to sync from backend without triggering backend update
+  const syncFromBackend = useCallback((isDarkMode: boolean) => {
+    const backendTheme: Theme = isDarkMode ? "dark" : "light";
+    setThemeState(backendTheme);
+    localStorage.setItem(storageKey, backendTheme);
+  }, [storageKey]);
+
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      localStorage.setItem(storageKey, theme);
-      setTheme(theme);
-    },
+    setTheme,
     resolvedTheme,
+    syncFromBackend, // ✅ New method for backend sync
   };
 
   return (
@@ -55,7 +103,6 @@ export function ThemeProvider({
   );
 }
 
-// Export useTheme hook
 export const useTheme = () => {
   const context = useContext(ThemeProviderContext);
 

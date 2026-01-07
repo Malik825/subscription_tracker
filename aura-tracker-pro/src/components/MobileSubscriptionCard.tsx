@@ -13,18 +13,20 @@ import {
 import { useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
 import { useTouchGesture } from "@/hooks/use-touch-guesture";
 
+interface Subscription {
+  _id: string;
+  name: string;
+  price: number;
+  frequency: string;
+  category: string;
+  status: string;
+  renewalDate?: string;
+  website?: string;
+}
+
 interface MobileSubscriptionCardProps {
-  subscription: {
-    _id: string;
-    name: string;
-    price: number;
-    frequency: string;
-    category: string;
-    status: string;
-    renewalDate?: string;
-    website?: string;
-  };
-  onEdit: (sub: any) => void;
+  subscription: Subscription;
+  onEdit: (sub: Subscription) => void;
   onDelete: (id: string) => void;
   color: string;
 }
@@ -114,7 +116,9 @@ export function MobileSubscriptionCard({
 
       {/* Swipeable Card */}
       <div
-        {...gestureHandlers}
+        onTouchStart={(e) => gestureHandlers.onTouchStart(e.nativeEvent)}
+        onTouchMove={(e) => gestureHandlers.onTouchMove(e.nativeEvent)}
+        onTouchEnd={(e) => gestureHandlers.onTouchEnd(e.nativeEvent)}
         className={cn(
           "relative border border-border rounded-xl p-4 bg-card transition-transform duration-300 ease-out touch-pan-y",
           "active:scale-[0.98]"
