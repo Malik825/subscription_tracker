@@ -60,7 +60,7 @@ export function NotificationBell({ iconSize = "md" }: NotificationBellProps) {
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
 
-  const unreadCount = unreadCountData?.data?.unreadCount || 0;
+  const unreadCount = unreadCountData?.unreadCount || 0;
   const notifications = notificationsData?.notifications || [];
 
   useEffect(() => {

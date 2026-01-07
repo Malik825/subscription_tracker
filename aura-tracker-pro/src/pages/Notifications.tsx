@@ -18,7 +18,9 @@ import { toggleSound, playSound, updateUnreadCount, setSoundEnabled } from "@/fe
 import { useAppDispatch, useAppSelector } from "@/redux";
 import { useGetUserPreferencesQuery, useUpdateUserPreferenceMutation } from "@/api/userPreferenceApi";
 import { useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
+import { getPollingInterval } from "@/api/api.config";
 
+// Icon mapping based on notification type
 const getNotificationIcon = (type: string) => {
   switch (type) {
     case "renewal":
@@ -35,6 +37,26 @@ const getNotificationIcon = (type: string) => {
   }
 };
 
+// Type for notification settings
+interface NotificationSetting {
+  id: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+}
+
+// Type for preference keys
+type PreferenceKey = 
+  | "soundNotifications"
+  | "renewalReminders"
+  | "paymentAlerts"
+  | "spendingInsights"
+  | "priceChanges"
+  | "newFeatures"
+  | "emailNotifications"
+  | "pushNotifications"
+  | "inAppNotifications";
+
 export default function Notifications() {
   const dispatch = useAppDispatch();
   const soundEnabled = useAppSelector((state) => state.notificationSound.soundEnabled);
@@ -45,7 +67,7 @@ export default function Notifications() {
   const hasAnnouncedPage = useRef(false);
 
   // Fetch user preferences
-  const { data: preferencesData, isLoading: preferencesLoading } = useGetUserPreferencesQuery();
+  const { data: preferencesData, isLoading: preferencesLoading } = useGetUserPreferencesQuery(undefined);
   const [updatePreference] = useUpdateUserPreferenceMutation();
 
   // Sync Redux state with backend preferences on load (useEffect to avoid render-phase updates)
@@ -56,7 +78,7 @@ export default function Notifications() {
   }, [preferencesData, dispatch]);
 
   // Build settings array from preferences
-  const settings = preferencesData?.data
+  const settings: NotificationSetting[] = preferencesData?.data
     ? [
         {
           id: "soundNotifications",
@@ -97,20 +119,21 @@ export default function Notifications() {
       ]
     : [];
 
+  // ✅ UPDATED: Use centralized polling configuration
   const { data: notificationsData, isLoading } = useGetNotificationsQuery(
     {
       read: activeTab === "unread" ? false : undefined,
     },
     {
-      pollingInterval: 30000,
+      pollingInterval: getPollingInterval('NOTIFICATIONS'),
       refetchOnFocus: true,
       refetchOnReconnect: true,
-      refetchOnMountOrArgChange: true,
     }
   );
 
+  // ✅ UPDATED: Use centralized polling configuration
   const { data: unreadCountData } = useGetUnreadCountQuery(undefined, {
-    pollingInterval: 30000,
+    pollingInterval: getPollingInterval('UNREAD_COUNT'),
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
@@ -118,9 +141,10 @@ export default function Notifications() {
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
-
-  const notifications = notificationsData?.data.notifications || [];
-  const unreadCount = unreadCountData?.data?.unreadCount || 0;
+  
+  // ✅ FIXED: Proper optional chaining
+  const notifications = notificationsData?.notifications || [];
+  const unreadCount = unreadCountData?.unreadCount || 0;
 
   // Update unread count in Redux (moved to useEffect)
   useEffect(() => {
@@ -203,6 +227,7 @@ export default function Notifications() {
     }
   };
 
+  // ✅ FIXED: Proper typing for preference updates
   const toggleSetting = async (id: string) => {
     if (isMobile) vibrate('select');
     
@@ -210,7 +235,10 @@ export default function Notifications() {
       const newValue = !soundEnabled;
       dispatch(toggleSound());
       try {
-        await updatePreference({ key: "soundNotifications", value: newValue });
+        await updatePreference({ 
+          key: id as PreferenceKey, 
+          value: newValue 
+        });
         await notifyMobile(
           newValue ? "Sound notifications enabled" : "Sound notifications disabled",
           { withHaptic: true, hapticPattern: 'toggleOn' }
@@ -224,7 +252,7 @@ export default function Notifications() {
       if (currentSetting) {
         try {
           await updatePreference({
-            key: id as any,
+            key: id as PreferenceKey,
             value: !currentSetting.enabled,
           });
           await notifyMobile(
@@ -243,7 +271,7 @@ export default function Notifications() {
     dispatch(playSound());
   };
 
-  const getNotificationStyle = (type: string) => {
+  const getNotificationStyle = (type: string): string => {
     switch (type) {
       case "warning":
       case "trial_ending":

@@ -30,9 +30,7 @@ export default function Dashboard() {
   // Ref to prevent duplicate announcements
   const hasAnnouncedDashboard = useRef(false);
 
-  console.log("Dashboard - User:", user);
-  console.log("Dashboard - Subscriptions:", subscriptions);
-  console.log("Dashboard - Stats:", stats);
+ 
 
   // Announce dashboard stats when loaded (once)
   useEffect(() => {

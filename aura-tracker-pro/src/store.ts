@@ -1,13 +1,10 @@
 // src/redux/store.ts (or wherever your store is configured)
-// Make sure to add the userPreferencesApi to your store
-
 import { configureStore } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import authReducer from "@/features/auth/authSlice";
 import notificationSoundReducer from "@/features/auth/notificationSoundSlice";
 import { authApi } from "@/api/authApi";
 import { notificationsApi } from "./api/notificationsApi";
-import { set } from "date-fns";
 import { settingsApi } from "./api/settingsApi";
 import { userPreferencesApi } from "./api/userPreferenceApi";
 
@@ -24,7 +21,8 @@ export const store = configureStore({
     getDefaultMiddleware()
       .concat(authApi.middleware)
       .concat(notificationsApi.middleware)
-      .concat(settingsApi.middleware),
+      .concat(settingsApi.middleware)
+      .concat(userPreferencesApi.middleware),
 });
 
 setupListeners(store.dispatch);

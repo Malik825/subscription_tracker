@@ -1,53 +1,59 @@
-// src/api/userPreferencesApi.ts
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { API_CONFIG } from "./api.config";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5500/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5500/api/v1";
 
-
-export interface UserPreferences {
+// Define the user preferences data structure
+export interface UserPreferencesData {
   soundNotifications: boolean;
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-  inAppNotifications: boolean;
   renewalReminders: boolean;
   paymentAlerts: boolean;
   spendingInsights: boolean;
   priceChanges: boolean;
   newFeatures: boolean;
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  inAppNotifications: boolean;
 }
 
-interface UpdatePreferenceRequest {
-  key: keyof UserPreferences;
+// API response wrapper
+interface UserPreferencesResponse {
+  success: boolean;
+  message: string;
+  data: UserPreferencesData;
+}
+
+// Update preference payload
+export interface UpdatePreferencePayload {
+  key: keyof UserPreferencesData;
   value: boolean;
 }
 
 export const userPreferencesApi = createApi({
   reducerPath: "userPreferencesApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
+    baseUrl: `${API_URL}/user-preferences`,
     credentials: "include",
-    prepareHeaders: (headers) => {
-      const token = localStorage.getItem("token");
-      if (token) {
-        headers.set("authorization", `Bearer ${token}`);
-      }
-      return headers;
-    },
   }),
   tagTypes: ["UserPreferences"],
+  // ✅ Keep cached data for 5 minutes
+  keepUnusedDataFor: API_CONFIG.CACHE_DURATIONS.USER_PREFERENCES,
   endpoints: (builder) => ({
-    getUserPreferences: builder.query<{ data: UserPreferences }, void>({
-      query: () => "/users/preferences",
+    // ✅ FIXED: Query now accepts void (no arguments required)
+    getUserPreferences: builder.query<UserPreferencesResponse, void>({
+      query: () => "",
       providesTags: ["UserPreferences"],
+      // No polling - preferences rarely change
     }),
+
     updateUserPreference: builder.mutation<
-      { data: UserPreferences },
-      UpdatePreferenceRequest
+      UserPreferencesResponse,
+      UpdatePreferencePayload
     >({
-      query: (body) => ({
-        url: "/users/preferences",
+      query: (data) => ({
+        url: "",
         method: "PATCH",
-        body,
+        body: data,
       }),
       invalidatesTags: ["UserPreferences"],
     }),

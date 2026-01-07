@@ -1,7 +1,8 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { API_CONFIG } from "./api.config";
 
-// Define types for better type safety
 interface SettingsResponse {
+  success: boolean;
   data: {
     profile?: {
       avatarUrl?: string;
@@ -10,12 +11,17 @@ interface SettingsResponse {
     preferences?: {
       darkMode?: boolean;
       currency?: string;
+      language?: string;
     };
     notifications?: {
       emailDigest?: boolean;
       pushNotifications?: boolean;
       renewalReminders?: boolean;
       marketingEmails?: boolean;
+      paymentAlerts?: boolean;
+      spendingInsights?: boolean;
+      priceChangeAlerts?: boolean;
+      productUpdates?: boolean;
     };
     billing?: {
       plan?: string;
@@ -25,79 +31,30 @@ interface SettingsResponse {
   };
 }
 
-interface ProfileUpdateData {
-  username: string;
-}
-
-interface ProfileUpdateResponse {
-  success: boolean;
-  message: string;
-  data?: {
-    username: string;
-  };
-}
-
-interface PreferencesUpdateData {
-  darkMode?: boolean;
-  currency?: string;
-}
-
-interface PreferencesUpdateResponse {
-  success: boolean;
-  message: string;
-  data?: PreferencesUpdateData;
-}
-
-interface NotificationsUpdateData {
-  emailDigest?: boolean;
-  pushNotifications?: boolean;
-  renewalReminders?: boolean;
-  marketingEmails?: boolean;
-}
-
-interface NotificationsUpdateResponse {
-  success: boolean;
-  message: string;
-  data?: NotificationsUpdateData;
-}
-
-interface BillingUpdateData {
-  plan?: string;
-  billingCycle?: string;
-}
-
-interface BillingUpdateResponse {
-  success: boolean;
-  message: string;
-  data?: BillingUpdateData;
-}
-
-interface DeleteAccountResponse {
-  success: boolean;
-  message: string;
-}
-
-interface ResetSettingsResponse {
-  success: boolean;
-  message: string;
-}
-
 export const settingsApi = createApi({
   reducerPath: "settingsApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_API_URL || "http://localhost:5500/api",
+    baseUrl: import.meta.env.VITE_API_URL || "http://localhost:5500/api/v1",
     credentials: "include",
   }),
   tagTypes: ["Settings", "User"],
+  // ✅ ADDED: Keep cached data for 5 minutes
+  keepUnusedDataFor: API_CONFIG.CACHE_DURATIONS.SETTINGS,
   endpoints: (builder) => ({
-    // Get user settings - no arguments required
     getSettings: builder.query<SettingsResponse, void>({
       query: () => "/settings",
       providesTags: ["Settings"],
+      // ✅ No polling - settings rarely change
+      // Will only refetch when:
+      // 1. Component mounts for the first time
+      // 2. A mutation invalidates the "Settings" tag
+      // 3. User manually triggers refetch
     }),
 
-    // Update profile settings
-    updateProfile: builder.mutation<ProfileUpdateResponse, ProfileUpdateData>({
+    updateProfile: builder.mutation<
+      SettingsResponse,
+      { username?: string; avatarUrl?: string }
+    >({
       query: (data) => ({
         url: "/settings/profile",
         method: "PUT",
@@ -106,10 +63,9 @@ export const settingsApi = createApi({
       invalidatesTags: ["Settings", "User"],
     }),
 
-    // Update preferences
     updatePreferences: builder.mutation<
-      PreferencesUpdateResponse,
-      PreferencesUpdateData
+      SettingsResponse,
+      { darkMode?: boolean; currency?: string; language?: string }
     >({
       query: (data) => ({
         url: "/settings/preferences",
@@ -119,11 +75,7 @@ export const settingsApi = createApi({
       invalidatesTags: ["Settings"],
     }),
 
-    // Update notification settings
-    updateNotifications: builder.mutation<
-      NotificationsUpdateResponse,
-      NotificationsUpdateData
-    >({
+    updateNotifications: builder.mutation<SettingsResponse, any>({
       query: (data) => ({
         url: "/settings/notifications",
         method: "PUT",
@@ -132,8 +84,10 @@ export const settingsApi = createApi({
       invalidatesTags: ["Settings"],
     }),
 
-    // Update billing settings
-    updateBilling: builder.mutation<BillingUpdateResponse, BillingUpdateData>({
+    updateBilling: builder.mutation<
+      SettingsResponse,
+      { plan?: string; billingCycle?: string; status?: string }
+    >({
       query: (data) => ({
         url: "/settings/billing",
         method: "PUT",
@@ -142,8 +96,10 @@ export const settingsApi = createApi({
       invalidatesTags: ["Settings"],
     }),
 
-    // Delete account
-    deleteAccount: builder.mutation<DeleteAccountResponse, string>({
+    deleteAccount: builder.mutation<
+      { success: boolean; message: string },
+      string
+    >({
       query: (password) => ({
         url: "/settings/account",
         method: "DELETE",
@@ -152,8 +108,7 @@ export const settingsApi = createApi({
       invalidatesTags: ["Settings", "User"],
     }),
 
-    // Reset settings to default
-    resetSettings: builder.mutation<ResetSettingsResponse, void>({
+    resetSettings: builder.mutation<SettingsResponse, void>({
       query: () => ({
         url: "/settings/reset",
         method: "POST",
