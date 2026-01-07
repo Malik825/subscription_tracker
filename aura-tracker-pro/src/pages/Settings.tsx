@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,188 +8,245 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
     User,
     Settings as SettingsIcon,
     Bell,
+    Shield,
     CreditCard,
     LogOut,
     Moon,
     Globe,
-    Loader2,
+    HelpCircle,
+    Volume2,
+    VolumeX,
+    Play,
+    Sparkles,
+    Smartphone,
+    Vibrate
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useLogoutMutation } from "@/api/authApi";
-import {
-    useGetSettingsQuery,
-    useUpdateProfileMutation,
-    useUpdatePreferencesMutation,
-    useUpdateNotificationsMutation,
-    useDeleteAccountMutation,
-} from "@/api/settingsApi";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { SerializedError } from "@reduxjs/toolkit";
-import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
-import { useTheme } from "@/theme/theme-provider";
-
-// Type guard for API errors
-function isErrorWithMessage(error: unknown): error is { data?: { message?: string } } {
-    return (
-        typeof error === "object" &&
-        error !== null &&
-        "data" in error &&
-        typeof (error as { data?: unknown }).data === "object"
-    );
-}
-
-function getErrorMessage(error: FetchBaseQueryError | SerializedError | undefined): string {
-    if (!error) return "An unknown error occurred";
-    
-    if (isErrorWithMessage(error)) {
-        return "An error occurred";
-    }
-    
-    if ("message" in error && typeof error.message === "string") {
-        return error.message;
-    }
-    
-    return "An error occurred";
-}
+import { 
+  getAvailableVoices, 
+  getSelectedVoice, 
+  setSelectedVoice,
+  testVoice,
+  getVoiceSettings,
+  setVoiceSettings,
+  getRecommendedVoices,
+  getVoiceQuality
+} from "@/lib/voiceUtils";
+import { 
+  isMobileDevice, 
+  getHapticEnabled, 
+  setHapticEnabled,
+  haptic,
+  isHapticSupported
+} from "@/lib/hapticUtils";
+import { setMobileVoiceSettings, useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
 
 export default function Settings() {
     const { user } = useAuth();
     const [logout] = useLogoutMutation();
     const navigate = useNavigate();
+    const { announce, vibrate, isMobile } = useMobileVoiceFeedback();
     const { toast } = useToast();
-    const { resolvedTheme, setTheme } = useTheme();
 
-    // Fetch settings
-    const { data: settingsData, isLoading: isLoadingSettings } = useGetSettingsQuery();
-    const settings = settingsData?.data;
+    // Load settings from localStorage
+    const [voiceEnabled, setVoiceEnabled] = useState(() => {
+        const saved = localStorage.getItem('voiceEnabled');
+        return saved !== null ? JSON.parse(saved) : true;
+    });
 
-    // Mutations
-    const [updateProfile, { isLoading: isUpdatingProfile }] = useUpdateProfileMutation();
-    const [updatePreferences, { isLoading: isUpdatingPreferences }] = useUpdatePreferencesMutation();
-    const [updateNotifications, { isLoading: isUpdatingNotifications }] = useUpdateNotificationsMutation();
-    const [deleteAccount, { isLoading: isDeletingAccount }] = useDeleteAccountMutation();
+    const [soundEnabled, setSoundEnabled] = useState(() => {
+        const saved = localStorage.getItem('notificationSoundEnabled');
+        return saved !== "false";
+    });
 
-    // Local state for form inputs
-    const [username, setUsername] = useState("");
-    const [deletePassword, setDeletePassword] = useState("");
+    const [hapticEnabled, setHapticEnabledState] = useState(() => {
+        return getHapticEnabled();
+    });
+
+    const [useBrevity, setUseBrevity] = useState(() => {
+        const saved = localStorage.getItem('mobileVoiceBrevity');
+        return saved === 'true';
+    });
+
+    const [autoReduceOnBattery, setAutoReduceOnBattery] = useState(() => {
+        const saved = localStorage.getItem('autoReduceVoice');
+        return saved !== 'false';
+    });
+
+    const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+    const [selectedVoiceName, setSelectedVoiceName] = useState<string>(() => {
+        return getSelectedVoice() || '';
+    });
+
+    const [voiceRate, setVoiceRate] = useState<number>(() => {
+        return getVoiceSettings().rate;
+    });
+
+    const [voicePitch, setVoicePitch] = useState<number>(() => {
+        return getVoiceSettings().pitch;
+    });
+
+    const [voiceVolume, setVoiceVolume] = useState<number>(() => {
+        return getVoiceSettings().volume;
+    });
+
+    // Load available voices
+    useEffect(() => {
+        const loadVoices = () => {
+            const voices = getRecommendedVoices();
+            setAvailableVoices(voices);
+            
+            // Set default voice if none selected
+            if (!selectedVoiceName && voices.length > 0) {
+                const defaultVoice = voices[0];
+                setSelectedVoiceName(defaultVoice.name);
+                setSelectedVoice(defaultVoice.name);
+            }
+        };
+
+        loadVoices();
+        
+        // Voices may load asynchronously
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+    }, []);
+
+    // Save settings to localStorage whenever they change
+    useEffect(() => {
+        localStorage.setItem('voiceEnabled', JSON.stringify(voiceEnabled));
+    }, [voiceEnabled]);
+
+    useEffect(() => {
+        localStorage.setItem('notificationSoundEnabled', soundEnabled.toString());
+    }, [soundEnabled]);
+
+    useEffect(() => {
+        setHapticEnabled(hapticEnabled);
+    }, [hapticEnabled]);
+
+    useEffect(() => {
+        setMobileVoiceSettings({ useBrevity, autoReduceOnBattery });
+    }, [useBrevity, autoReduceOnBattery]);
+
+    useEffect(() => {
+        if (selectedVoiceName) {
+            setSelectedVoice(selectedVoiceName);
+        }
+    }, [selectedVoiceName]);
+
+    useEffect(() => {
+        setVoiceSettings({ rate: voiceRate, pitch: voicePitch, volume: voiceVolume });
+    }, [voiceRate, voicePitch, voiceVolume]);
+
+    const handleVoiceToggle = (checked: boolean) => {
+        setVoiceEnabled(checked);
+        if (checked) {
+            announce("Voice feedback enabled");
+        }
+        toast({
+            title: checked ? "Voice Feedback Enabled" : "Voice Feedback Disabled",
+            description: checked ? "You will now hear audio announcements" : "Audio announcements are now off"
+        });
+    };
+
+    const handleSoundToggle = (checked: boolean) => {
+        setSoundEnabled(checked);
+        if (isMobile) vibrate('select');
+        if (voiceEnabled) {
+            announce(checked ? "Sound notifications enabled" : "Sound notifications disabled");
+        }
+        toast({
+            title: checked ? "Sound Notifications Enabled" : "Sound Notifications Disabled",
+            description: checked ? "You will now hear notification sounds" : "Notification sounds are now off"
+        });
+    };
+
+    const handleHapticToggle = (checked: boolean) => {
+        setHapticEnabledState(checked);
+        if (checked && isMobile) {
+            haptic.success();
+        }
+        if (voiceEnabled) {
+            announce(checked ? "Haptic feedback enabled" : "Haptic feedback disabled");
+        }
+        toast({
+            title: checked ? "Haptic Feedback Enabled" : "Haptic Feedback Disabled",
+            description: checked ? "You will now feel vibrations on actions" : "Vibrations are now off"
+        });
+    };
+
+    const handleBrevityToggle = (checked: boolean) => {
+        setUseBrevity(checked);
+        if (isMobile) vibrate('select');
+        if (voiceEnabled) {
+            announce(checked ? "Brief mode enabled. Voice messages will be shorter." : "Brief mode disabled. Voice messages will be full length.");
+        }
+        toast({
+            title: checked ? "Brief Mode Enabled" : "Brief Mode Disabled",
+            description: checked ? "Voice messages will be concise" : "Voice messages will be detailed"
+        });
+    };
+
+    const handleBatteryToggle = (checked: boolean) => {
+        setAutoReduceOnBattery(checked);
+        if (isMobile) vibrate('select');
+        if (voiceEnabled) {
+            announce(checked ? "Battery saver enabled" : "Battery saver disabled");
+        }
+        toast({
+            title: checked ? "Battery Saver Enabled" : "Battery Saver Disabled",
+            description: checked ? "Voice will pause when battery is low" : "Voice will always play"
+        });
+    };
+
+    const handleVoiceChange = (voiceName: string) => {
+        setSelectedVoiceName(voiceName);
+        toast({
+            title: "Voice Changed",
+            description: "Click the play button to preview the new voice"
+        });
+    };
+
+    const handleTestVoice = () => {
+        if (selectedVoiceName) {
+            testVoice(
+                selectedVoiceName,
+                "Hello! This is how I sound. I will announce your subscription updates and actions."
+            );
+        }
+    };
+
+    const getVoiceDisplayName = (voice: SpeechSynthesisVoice) => {
+        const quality = getVoiceQuality(voice);
+        const qualityBadge = quality === 'high' ? ' ⭐' : quality === 'medium' ? ' •' : '';
+        return `${voice.name}${qualityBadge}`;
+    };
 
     const handleLogout = async () => {
         try {
             await logout().unwrap();
             navigate("/auth");
         } catch (error) {
-            
+            console.error("Logout failed:", error);
             navigate("/auth");
         }
     };
-
-    const handleUpdateProfile = async () => {
-        if (!username.trim()) {
-            toast({
-                title: "Error",
-                description: "Please enter a valid name",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        try {
-            await updateProfile({ username }).unwrap();
-            toast({
-                title: "Success",
-                description: "Profile updated successfully",
-            });
-            setUsername(""); // Clear input after successful update
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: getErrorMessage(error as FetchBaseQueryError | SerializedError),
-                variant: "destructive",
-            });
-        }
-    };
-
-    const handleToggleDarkMode = async (checked: boolean) => {
-        try {
-            // Update theme immediately for instant feedback
-            setTheme(checked ? "dark" : "light");
-            
-            // Then save to backend
-            await updatePreferences({ darkMode: checked }).unwrap();
-            
-            toast({
-                title: "Success",
-                description: "Theme preference updated",
-            });
-        } catch (error) {
-            // Revert theme if API call fails
-            setTheme(!checked ? "dark" : "light");
-            
-            toast({
-                title: "Error",
-                description: "Failed to update theme",
-                variant: "destructive",
-            });
-        }
-    };
-
-    const handleToggleNotification = async (
-        field: "emailDigest" | "pushNotifications" | "renewalReminders" | "marketingEmails",
-        checked: boolean
-    ) => {
-        try {
-            await updateNotifications({ [field]: checked }).unwrap();
-            toast({
-                title: "Success",
-                description: "Notification preference updated",
-            });
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: "Failed to update notification",
-                variant: "destructive",
-            });
-        }
-    };
-
-    const handleDeleteAccount = async () => {
-        if (!deletePassword) {
-            toast({
-                title: "Error",
-                description: "Please enter your password",
-                variant: "destructive",
-            });
-            return;
-        }
-
-        try {
-            await deleteAccount(deletePassword).unwrap();
-            toast({
-                title: "Success",
-                description: "Account deleted successfully",
-            });
-            navigate("/auth");
-        } catch (error) {
-            toast({
-                title: "Error",
-                description: getErrorMessage(error as FetchBaseQueryError | SerializedError),
-                variant: "destructive",
-            });
-        }
-    };
-
-    if (isLoadingSettings) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen aura-bg">
@@ -255,8 +313,8 @@ export default function Settings() {
                                         <h2 className="text-xl font-semibold mb-4">Public Profile</h2>
                                         <div className="flex items-center gap-6">
                                             <Avatar className="h-20 w-20 border-2 border-primary/20">
-                                                <AvatarImage src={settings?.profile?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
-                                                <AvatarFallback>{user?.username?.charAt(0) || 'U'}</AvatarFallback>
+                                                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.username}`} />
+                                                <AvatarFallback>{user?.username?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-2">
                                                 <Button variant="outline" size="sm">Change Avatar</Button>
@@ -267,27 +325,13 @@ export default function Settings() {
 
                                     <div className="grid gap-4">
                                         <div className="grid gap-2">
-                                            <Label htmlFor="name">Username</Label>
-                                            <Input 
-                                                id="name" 
-                                                defaultValue={user?.username}
-                                                onChange={(e) => setUsername(e.target.value)}
-                                                placeholder="Enter your username"
-                                            />
+                                            <Label htmlFor="name">Full Name</Label>
+                                            <Input id="name" defaultValue={user?.username} />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="email">Email Address</Label>
                                             <Input id="email" defaultValue={user?.email} disabled />
-                                            <p className="text-xs text-muted-foreground">Email cannot be changed</p>
                                         </div>
-                                        <Button 
-                                            onClick={handleUpdateProfile}
-                                            disabled={isUpdatingProfile || !username}
-                                            className="w-full"
-                                        >
-                                            {isUpdatingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                            Save Changes
-                                        </Button>
                                     </div>
                                 </div>
                             </TabsContent>
@@ -303,15 +347,9 @@ export default function Settings() {
                                                 <Moon className="h-4 w-4 text-muted-foreground" />
                                                 <Label>Dark Mode</Label>
                                             </div>
-                                            <p className="text-sm text-muted-foreground">
-                                                Currently: {resolvedTheme === "dark" ? "Dark" : "Light"} mode
-                                            </p>
+                                            <p className="text-sm text-muted-foreground">Ensure that dark mode is always enabled</p>
                                         </div>
-                                        <Switch 
-                                            checked={resolvedTheme === "dark"}
-                                            onCheckedChange={handleToggleDarkMode}
-                                            disabled={isUpdatingPreferences}
-                                        />
+                                        <Switch defaultChecked />
                                     </div>
                                     <Separator className="bg-white/5" />
                                     <div className="flex items-center justify-between">
@@ -322,33 +360,19 @@ export default function Settings() {
                                             </div>
                                             <p className="text-sm text-muted-foreground">Select your preferred display currency</p>
                                         </div>
-                                        <Button variant="outline" size="sm">
-                                            {settings?.preferences?.currency || "USD"} ($)
-                                        </Button>
+                                        <Button variant="outline" size="sm">USD ($)</Button>
                                     </div>
                                 </div>
 
                                 <div className="glass p-6 rounded-2xl space-y-6 border-red-500/20">
                                     <h2 className="text-xl font-semibold text-destructive">Danger Zone</h2>
                                     <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-red-400">Delete Account</Label>
-                                            <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
-                                            <Input 
-                                                type="password" 
-                                                placeholder="Enter your password to confirm"
-                                                value={deletePassword}
-                                                onChange={(e) => setDeletePassword(e.target.value)}
-                                            />
-                                            <Button 
-                                                variant="destructive" 
-                                                size="sm"
-                                                onClick={handleDeleteAccount}
-                                                disabled={isDeletingAccount || !deletePassword}
-                                            >
-                                                {isDeletingAccount && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                Delete Account
-                                            </Button>
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <Label className="text-red-400">Delete Account</Label>
+                                                <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
+                                            </div>
+                                            <Button variant="destructive" size="sm">Delete Account</Button>
                                         </div>
                                     </div>
                                 </div>
@@ -356,41 +380,245 @@ export default function Settings() {
 
                             {/* Notifications Tab */}
                             <TabsContent value="notifications" className="space-y-6 mt-0 animate-fade-in">
+                                {/* Accessibility Settings */}
+                                <div className="glass p-6 rounded-2xl space-y-6">
+                                    <div>
+                                        <h2 className="text-xl font-semibold mb-2">Accessibility</h2>
+                                        <p className="text-sm text-muted-foreground">
+                                            Configure audio feedback and notification preferences
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    {voiceEnabled ? (
+                                                        <Volume2 className="h-4 w-4 text-primary" />
+                                                    ) : (
+                                                        <VolumeX className="h-4 w-4 text-muted-foreground" />
+                                                    )}
+                                                    <Label>Voice Feedback</Label>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Hear audio announcements for actions and updates
+                                                </p>
+                                            </div>
+                                            <Switch 
+                                                checked={voiceEnabled}
+                                                onCheckedChange={handleVoiceToggle}
+                                            />
+                                        </div>
+                                        
+                                        {voiceEnabled && (
+                                            <>
+                                                <Separator className="bg-white/5" />
+                                                
+                                                {/* Voice Selection */}
+                                                <div className="space-y-3">
+                                                    <Label className="flex items-center gap-2">
+                                                        <Sparkles className="h-4 w-4 text-primary" />
+                                                        Select Voice
+                                                    </Label>
+                                                    <div className="flex gap-2">
+                                                        <Select 
+                                                            value={selectedVoiceName} 
+                                                            onValueChange={handleVoiceChange}
+                                                        >
+                                                            <SelectTrigger className="flex-1">
+                                                                <SelectValue placeholder="Choose a voice" />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="max-h-[300px]">
+                                                                {availableVoices.map((voice) => (
+                                                                    <SelectItem key={voice.name} value={voice.name}>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span>{getVoiceDisplayName(voice)}</span>
+                                                                            <span className="text-xs text-muted-foreground">
+                                                                                ({voice.lang})
+                                                                            </span>
+                                                                        </div>
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="icon"
+                                                            onClick={handleTestVoice}
+                                                            disabled={!selectedVoiceName}
+                                                        >
+                                                            <Play className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        ⭐ = High quality • • = Good quality
+                                                    </p>
+                                                </div>
+
+                                                <Separator className="bg-white/5" />
+
+                                                {/* Voice Speed */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label>Speech Rate</Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {voiceRate.toFixed(1)}x
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[voiceRate]}
+                                                        onValueChange={(value) => setVoiceRate(value[0])}
+                                                        min={0.5}
+                                                        max={2.0}
+                                                        step={0.1}
+                                                        className="w-full"
+                                                    />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>Slower</span>
+                                                        <span>Faster</span>
+                                                    </div>
+                                                </div>
+
+                                                <Separator className="bg-white/5" />
+
+                                                {/* Voice Pitch */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label>Voice Pitch</Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {voicePitch.toFixed(1)}
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[voicePitch]}
+                                                        onValueChange={(value) => setVoicePitch(value[0])}
+                                                        min={0.5}
+                                                        max={2.0}
+                                                        step={0.1}
+                                                        className="w-full"
+                                                    />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>Lower</span>
+                                                        <span>Higher</span>
+                                                    </div>
+                                                </div>
+
+                                                <Separator className="bg-white/5" />
+
+                                                {/* Voice Volume */}
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label>Voice Volume</Label>
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {Math.round(voiceVolume * 100)}%
+                                                        </span>
+                                                    </div>
+                                                    <Slider
+                                                        value={[voiceVolume]}
+                                                        onValueChange={(value) => setVoiceVolume(value[0])}
+                                                        min={0.1}
+                                                        max={1.0}
+                                                        step={0.1}
+                                                        className="w-full"
+                                                    />
+                                                    <div className="flex justify-between text-xs text-muted-foreground">
+                                                        <span>Quiet</span>
+                                                        <span>Loud</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                        
+                                        <Separator className="bg-white/5" />
+                                        
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-2">
+                                                    <Bell className="h-4 w-4 text-muted-foreground" />
+                                                    <Label>Sound Notifications</Label>
+                                                </div>
+                                                <p className="text-sm text-muted-foreground">
+                                                    Play sounds for important events and alerts
+                                                </p>
+                                            </div>
+                                            <Switch 
+                                                checked={soundEnabled}
+                                                onCheckedChange={handleSoundToggle}
+                                            />
+                                        </div>
+
+                                        {/* Mobile-specific settings */}
+                                        {isMobile && isHapticSupported() && (
+                                            <>
+                                                <Separator className="bg-white/5" />
+                                                
+                                                <div className="space-y-4 p-4 rounded-lg bg-primary/5 border border-primary/10">
+                                                    <div className="flex items-center gap-2 text-primary">
+                                                        <Smartphone className="h-4 w-4" />
+                                                        <span className="text-sm font-semibold">Mobile Settings</span>
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <Vibrate className="h-4 w-4 text-muted-foreground" />
+                                                                <Label>Haptic Feedback</Label>
+                                                            </div>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Vibrate on taps, swipes, and actions
+                                                            </p>
+                                                        </div>
+                                                        <Switch 
+                                                            checked={hapticEnabled}
+                                                            onCheckedChange={handleHapticToggle}
+                                                        />
+                                                    </div>
+
+                                                    <Separator className="bg-white/5" />
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <Label>Brief Voice Messages</Label>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Shorter announcements for faster feedback
+                                                            </p>
+                                                        </div>
+                                                        <Switch 
+                                                            checked={useBrevity}
+                                                            onCheckedChange={handleBrevityToggle}
+                                                        />
+                                                    </div>
+
+                                                    <Separator className="bg-white/5" />
+
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="space-y-0.5">
+                                                            <Label>Battery Saver</Label>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Reduce voice when battery is low
+                                                            </p>
+                                                        </div>
+                                                        <Switch 
+                                                            checked={autoReduceOnBattery}
+                                                            onCheckedChange={handleBatteryToggle}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Standard Notification Settings */}
                                 <div className="glass p-6 rounded-2xl space-y-6">
                                     <h2 className="text-xl font-semibold">Notification Settings</h2>
                                     <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <Label>Email Digest</Label>
-                                            <Switch 
-                                                checked={settings?.notifications?.emailDigest ?? true}
-                                                onCheckedChange={(checked) => handleToggleNotification("emailDigest", checked)}
-                                                disabled={isUpdatingNotifications}
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <Label>Push Notifications</Label>
-                                            <Switch 
-                                                checked={settings?.notifications?.pushNotifications ?? false}
-                                                onCheckedChange={(checked) => handleToggleNotification("pushNotifications", checked)}
-                                                disabled={isUpdatingNotifications}
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <Label>Renewal Reminders</Label>
-                                            <Switch 
-                                                checked={settings?.notifications?.renewalReminders ?? true}
-                                                onCheckedChange={(checked) => handleToggleNotification("renewalReminders", checked)}
-                                                disabled={isUpdatingNotifications}
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <Label>Marketing Emails</Label>
-                                            <Switch 
-                                                checked={settings?.notifications?.marketingEmails ?? false}
-                                                onCheckedChange={(checked) => handleToggleNotification("marketingEmails", checked)}
-                                                disabled={isUpdatingNotifications}
-                                            />
-                                        </div>
+                                        {["Email Digest", "Push Notifications", "Renewal Reminders", "Marketing Emails"].map((item) => (
+                                            <div key={item} className="flex items-center justify-between">
+                                                <Label>{item}</Label>
+                                                <Switch defaultChecked={item !== "Marketing Emails"} />
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </TabsContent>
@@ -401,16 +629,14 @@ export default function Settings() {
                                     <h2 className="text-xl font-semibold">Current Plan</h2>
                                     <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border border-primary/20">
                                         <div>
-                                            <p className="font-bold text-lg text-primary capitalize">
-                                                {settings?.billing?.plan || "Free"} Plan
+                                            <p className="font-bold text-lg text-primary">
+                                                {user?.plan === "free" ? "Free Plan" : "Pro Plan"}
                                             </p>
-                                            <p className="text-sm text-muted-foreground capitalize">
-                                                Billed {settings?.billing?.billingCycle || "monthly"}
+                                            <p className="text-sm text-muted-foreground">
+                                                {user?.plan === "free" ? "Limited features" : "Billed monthly"}
                                             </p>
                                         </div>
-                                        <Badge className="bg-primary text-primary-foreground capitalize">
-                                            {settings?.billing?.status || "Active"}
-                                        </Badge>
+                                        <Badge className="bg-primary text-primary-foreground">Active</Badge>
                                     </div>
                                     <Button variant="outline" className="w-full">Manage Subscription</Button>
                                 </div>

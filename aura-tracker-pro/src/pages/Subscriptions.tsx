@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SubscriptionTable } from "@/components/SubscriptionTable";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useVoiceFeedback } from "@/hooks/use-voice-feedback";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +62,7 @@ export default function Subscriptions() {
   const { data: stats } = useSubscriptionStats();
 
   const { user } = useAuth();
+  const { announce } = useVoiceFeedback();
   
   // Set grid view on mobile, list on desktop
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
@@ -104,22 +106,48 @@ export default function Subscriptions() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Announce page details when component mounts and stats are loaded
+  useEffect(() => {
+    if (stats && !isLoading) {
+      const activeCount = stats.overview.active || 0;
+      const monthlySpending = (stats.spending?.totalMonthly || 0).toFixed(2);
+      const yearlyProjection = (stats.spending?.totalYearly || 0).toFixed(2);
+      
+      announce(
+        `Subscriptions page loaded. You have ${activeCount} active subscription${activeCount !== 1 ? 's' : ''}. ` +
+        `Monthly spending is ${monthlySpending}. Yearly projection is ${yearlyProjection}.`
+      );
+    }
+  }, [stats, isLoading, announce]);
+
   const onSubmit = async (data: SubscriptionInput) => {
     try {
       if (editingSubscription) {
         await updateSubscription.mutateAsync({ id: editingSubscription._id, data });
+        announce(
+          `${data.name} subscription updated successfully. ` +
+          `New price: ${data.price} per ${data.frequency.toLowerCase()}. ` +
+          `Status: ${data.status}. Category: ${data.category}.`
+        );
         toast({ title: "Success", description: "Subscription updated successfully" });
       } else {
         await createSubscription.mutateAsync(data);
+        announce(
+          `${data.name} subscription added successfully. ` +
+          `Price: ${data.price} per ${data.frequency.toLowerCase()}. ` +
+          `Status: ${data.status}. Category: ${data.category}.`
+        );
         toast({ title: "Success", description: "Subscription added successfully" });
       }
       setIsAddDialogOpen(false);
       setEditingSubscription(null);
       form.reset();
     } catch (err) {
+      const errorMessage = editingSubscription ? "Failed to update subscription" : "Failed to add subscription";
+      announce(errorMessage);
       toast({
         title: "Error",
-        description: editingSubscription ? "Failed to update subscription" : "Failed to add subscription",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -141,11 +169,14 @@ export default function Subscriptions() {
   };
 
   const handleDelete = async (id: string) => {
+    const sub = allSubscriptions.find(s => s._id === id);
     if (confirm("Are you sure you want to delete this subscription?")) {
       try {
         await deleteSubscription.mutateAsync(id);
+        announce(`${sub?.name || "Subscription"} deleted successfully.`);
         toast({ title: "Success", description: "Subscription deleted successfully" });
       } catch (err) {
+        announce("Failed to delete subscription.");
         toast({ title: "Error", description: "Failed to delete subscription", variant: "destructive" });
       }
     }
@@ -198,11 +229,25 @@ export default function Subscriptions() {
     if (user?.plan === "free") {
       setIsUpgradeModalOpen(true);
     } else {
+      const count = selectedIds.length || filteredSubscriptions.length;
+      announce(`Exporting ${count} subscriptions to CSV.`);
       toast({
         title: "Export Started",
-        description: `Exporting ${selectedIds.length || filteredSubscriptions.length} subscriptions to CSV...`,
+        description: `Exporting ${count} subscriptions to CSV...`,
       });
     }
+  };
+
+  const handleViewModeChange = (mode: "grid" | "list") => {
+    setViewMode(mode);
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
   };
 
   if (isLoading) {
@@ -241,10 +286,10 @@ export default function Subscriptions() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setViewMode("grid")}>
+                    <DropdownMenuItem onClick={() => handleViewModeChange("grid")}>
                       <Grid className="h-4 w-4 mr-2" /> Grid View
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setViewMode("list")}>
+                    <DropdownMenuItem onClick={() => handleViewModeChange("list")}>
                       <List className="h-4 w-4 mr-2" /> Table View
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -277,10 +322,12 @@ export default function Subscriptions() {
               </div>
             </div>
 
-            {/* Dialog remains the same */}
+            {/* Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
-              if (!open) setEditingSubscription(null);
+              if (!open) {
+                setEditingSubscription(null);
+              }
             }}>
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
@@ -512,10 +559,10 @@ export default function Subscriptions() {
                   placeholder="Search subscriptions..."
                   className="pl-10 h-10"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                 <SelectTrigger className="w-full sm:w-[160px] h-10">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />

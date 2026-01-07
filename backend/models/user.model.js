@@ -31,6 +31,45 @@ const userSchema = new mongoose.Schema(
       enum: ["free", "pro"],
       default: "free",
     },
+    // ⭐ ADD PREFERENCES FIELD
+    preferences: {
+      soundNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      emailNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      pushNotifications: {
+        type: Boolean,
+        default: false,
+      },
+      inAppNotifications: {
+        type: Boolean,
+        default: true,
+      },
+      renewalReminders: {
+        type: Boolean,
+        default: true,
+      },
+      paymentAlerts: {
+        type: Boolean,
+        default: true,
+      },
+      spendingInsights: {
+        type: Boolean,
+        default: true,
+      },
+      priceChanges: {
+        type: Boolean,
+        default: false,
+      },
+      newFeatures: {
+        type: Boolean,
+        default: false,
+      },
+    },
     verificationToken: String,
     verificationTokenExpiresAt: Date,
     resetPasswordToken: String,
