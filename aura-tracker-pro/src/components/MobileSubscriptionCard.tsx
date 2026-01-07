@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Edit, Trash2, ExternalLink, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useTouchGesture } from "@/hooks/useTouchGesture";
-import { useMobileVoiceFeedback } from "@/hooks/use-voice-feedback";
+
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -11,6 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
+import { useTouchGesture } from "@/hooks/use-touch-guesture";
 
 interface MobileSubscriptionCardProps {
   subscription: {

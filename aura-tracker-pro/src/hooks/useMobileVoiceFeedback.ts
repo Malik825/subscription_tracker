@@ -7,25 +7,39 @@ import {
 } from "@/lib/notificationSound";
 import { haptic, getHapticEnabled, isMobileDevice } from "@/lib/hapticUtils";
 
-// Helper function to get voice enabled state from localStorage
+interface BatteryManager extends EventTarget {
+  charging: boolean;
+  chargingTime: number;
+  dischargingTime: number;
+  level: number;
+  onchargingchange: ((this: BatteryManager, ev: Event) => unknown) | null;
+  onchargingtimechange: ((this: BatteryManager, ev: Event) => unknown) | null;
+  ondischargingtimechange:
+    | ((this: BatteryManager, ev: Event) => unknown)
+    | null;
+  onlevelchange: ((this: BatteryManager, ev: Event) => unknown) | null;
+}
+
+interface NavigatorWithBattery extends Navigator {
+  getBattery(): Promise<BatteryManager>;
+}
+
 const getVoiceEnabled = (): boolean => {
   const saved = localStorage.getItem("voiceEnabled");
-  return saved !== null ? JSON.parse(saved) : true; // Default to true
+  return saved !== null ? JSON.parse(saved) : true;
 };
 
-// Helper function to set voice enabled state
 export const setVoiceEnabled = (enabled: boolean): void => {
   localStorage.setItem("voiceEnabled", JSON.stringify(enabled));
 };
 
-// Mobile-specific settings
 const getMobileVoiceSettings = () => {
   const brevity = localStorage.getItem("mobileVoiceBrevity");
   const autoReduce = localStorage.getItem("autoReduceVoice");
 
   return {
     useBrevity: brevity === "true",
-    autoReduceOnBattery: autoReduce !== "false", // Default true
+    autoReduceOnBattery: autoReduce !== "false",
   };
 };
 
@@ -44,11 +58,10 @@ export const setMobileVoiceSettings = (settings: {
   }
 };
 
-// Check battery status (if supported)
 const isLowBattery = async (): Promise<boolean> => {
   if ("getBattery" in navigator) {
     try {
-      const battery = await (navigator as any).getBattery();
+      const battery = await (navigator as NavigatorWithBattery).getBattery();
       return battery.level < 0.2 && !battery.charging;
     } catch {
       return false;
@@ -57,9 +70,7 @@ const isLowBattery = async (): Promise<boolean> => {
   return false;
 };
 
-// Shorten message for mobile
 const makeMessageBrief = (message: string): string => {
-  // Remove verbose phrases
   return message
     .replace(/successfully\./gi, ".")
     .replace(/has been /gi, "")
@@ -76,23 +87,19 @@ export const useMobileVoiceFeedback = () => {
   const isMobile = isMobileDevice();
   const mobileSettings = getMobileVoiceSettings();
 
-  // Announce with voice feedback only
   const announce = async (message: string, forceFull = false) => {
     if (!voiceEnabled) return;
 
     let finalMessage = message;
 
-    // Apply mobile optimizations
     if (isMobile && !forceFull) {
-      // Check battery if auto-reduce is enabled
       if (mobileSettings.autoReduceOnBattery) {
         const lowBattery = await isLowBattery();
         if (lowBattery) {
-          return; // Skip voice on low battery
+          return;
         }
       }
 
-      // Use brief messages if enabled
       if (mobileSettings.useBrevity) {
         finalMessage = makeMessageBrief(message);
       }
@@ -101,13 +108,11 @@ export const useMobileVoiceFeedback = () => {
     speak(finalMessage);
   };
 
-  // Play notification sound only
   const playSound = (useCustomSound = false) => {
     if (!soundEnabled) return;
     playNotification(useCustomSound);
   };
 
-  // Play specific sound variations
   const playBeep = () => {
     if (!soundEnabled) return;
     playNotificationBeep();
@@ -118,7 +123,6 @@ export const useMobileVoiceFeedback = () => {
     playNotificationTwoTone();
   };
 
-  // Mobile-optimized notification (voice + sound + haptic)
   const notifyMobile = async (
     message: string,
     options: {
@@ -137,17 +141,14 @@ export const useMobileVoiceFeedback = () => {
       forceFull = false,
     } = options;
 
-    // Voice feedback
     if (voiceEnabled) {
       await announce(message, forceFull);
     }
 
-    // Sound feedback
     if (withSound && soundEnabled) {
       playNotification(useCustomSound);
     }
 
-    // Haptic feedback (mobile only)
     if (withHaptic && hapticEnabled && isMobile) {
       if (typeof hapticPattern === "string" && hapticPattern in haptic) {
         haptic[hapticPattern as keyof typeof haptic]();
@@ -155,7 +156,6 @@ export const useMobileVoiceFeedback = () => {
     }
   };
 
-  // Combined notification (voice + optional sound) - backward compatible
   const notify = async (
     message: string,
     withSound = false,
@@ -168,7 +168,6 @@ export const useMobileVoiceFeedback = () => {
     });
   };
 
-  // Haptic-only feedback
   const vibrate = (pattern: keyof typeof haptic = "tap") => {
     if (!hapticEnabled || !isMobile) return;
     if (typeof pattern === "string" && pattern in haptic) {
@@ -177,16 +176,16 @@ export const useMobileVoiceFeedback = () => {
   };
 
   return {
-    announce, // Voice only
-    playSound, // Sound only
-    playBeep, // Beep sound only
-    playTwoTone, // Two-tone sound only
-    notify, // Combined (backward compatible)
-    notifyMobile, // Mobile-optimized with haptic
-    vibrate, // Haptic only
-    voiceEnabled, // Expose voice state
-    soundEnabled, // Expose sound state
-    hapticEnabled, // Expose haptic state
-    isMobile, // Device type
+    announce,
+    playSound,
+    playBeep,
+    playTwoTone,
+    notify,
+    notifyMobile,
+    vibrate,
+    voiceEnabled,
+    soundEnabled,
+    hapticEnabled,
+    isMobile,
   };
 };
