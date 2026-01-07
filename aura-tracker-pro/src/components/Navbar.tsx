@@ -49,120 +49,119 @@ export function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
-      <div className="w-full px-4 sm:px-6">
-        <div className="flex items-center justify-between h-16 max-w-7xl mx-auto">
-          <Link to="/" className="flex items-center gap-2 shrink-0 min-w-0">
-            <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary shrink-0">
-              <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
-            </div>
-            <span className="text-base sm:text-xl font-bold text-foreground truncate">
-              SubTrack
-            </span>
-          </Link>
+      {/* Removed max-w-7xl, now uses parent container width */}
+      <div className="flex items-center justify-between h-16 w-[80%] lg:w-[95%] mx-auto">
+        <Link to="/" className="flex items-center gap-2 shrink-0 min-w-0">
+          <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-xl bg-primary shrink-0">
+            <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+          </div>
+          <span className="text-base sm:text-xl font-bold text-foreground truncate">
+            SubTrack
+          </span>
+        </Link>
 
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            <div className="shrink-0">
-              <ThemeToggle />
-            </div>
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="shrink-0">
+            <ThemeToggle />
+          </div>
 
-            {user ? (
-              <>
-                <div className="hidden sm:flex items-center gap-2">
-                  {user.plan === "free" && (
-                    <Link to="/dashboard">
-                      <Button variant="outline" size="sm" className="h-9">
-                        Upgrade to Pro
-                      </Button>
-                    </Link>
-                  )}
-
-                  <NotificationBell iconSize="md" />
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        className="relative h-9 w-9 rounded-full hover:bg-accent"
-                      >
-                        <Avatar className="h-9 w-9 border-2 border-border">
-                          <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-semibold">
-                            {getUserInitials()}
-                          </AvatarFallback>
-                        </Avatar>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-56" align="end" forceMount>
-                      <DropdownMenuLabel className="font-normal">
-                        <div className="flex flex-col space-y-1">
-                          <p className="text-sm font-medium leading-none">
-                            {user.username}
-                          </p>
-                          <p className="text-xs leading-none text-muted-foreground">
-                            {user.email}
-                          </p>
-                          <p className="text-xs leading-none text-muted-foreground mt-1">
-                            <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-                              {user.plan.toUpperCase()}
-                            </span>
-                          </p>
-                        </div>
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link to="/dashboard" className="cursor-pointer">
-                          <User className="mr-2 h-4 w-4" />
-                          <span>Dashboard</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link to="/settings" className="cursor-pointer">
-                          <User className="mr-2 h-4 w-4" />
-                          <span>Settings</span>
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={handleLogout}
-                        className="cursor-pointer text-destructive"
-                      >
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Log out</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-
-                <div className="flex sm:hidden items-center gap-1.5">
-                  <NotificationBell iconSize="sm" />
-                  
-                  <Link to="/dashboard" className="shrink-0">
-                    <Button size="sm" className="bg-primary hover:bg-primary/90 h-9 px-3 text-sm">
-                      Dashboard
+          {user ? (
+            <>
+              <div className="hidden sm:flex items-center gap-2">
+                {user.plan === "free" && (
+                  <Link to="/dashboard">
+                    <Button variant="outline" size="sm" className="h-9">
+                      Upgrade to Pro
                     </Button>
                   </Link>
-                </div>
-              </>
-            ) : (
-              <>
-                <Link to="/auth" className="hidden sm:block shrink-0">
-                  <Button variant="ghost" size="sm" className="h-9">
-                    Sign In
-                  </Button>
-                </Link>
-                <Link to="/auth" className="hidden sm:block shrink-0">
-                  <Button size="sm" className="bg-primary hover:bg-primary/90 h-9">
-                    Get Started
-                  </Button>
-                </Link>
+                )}
 
-                <Link to="/auth" className="sm:hidden shrink-0">
+                <NotificationBell iconSize="md" />
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      className="relative h-9 w-9 rounded-full hover:bg-accent"
+                    >
+                      <Avatar className="h-9 w-9 border-2 border-border">
+                        <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-semibold">
+                          {getUserInitials()}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {user.username}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {user.email}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground mt-1">
+                          <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                            {user.plan.toUpperCase()}
+                          </span>
+                        </p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/dashboard" className="cursor-pointer">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>Dashboard</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/settings" className="cursor-pointer">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                      className="cursor-pointer text-destructive"
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="flex sm:hidden items-center gap-1.5">
+                <NotificationBell iconSize="sm" />
+                
+                <Link to="/dashboard" className="shrink-0">
                   <Button size="sm" className="bg-primary hover:bg-primary/90 h-9 px-3 text-sm">
-                    Sign In
+                    Dashboard
                   </Button>
                 </Link>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <Link to="/auth" className="hidden sm:block shrink-0">
+                <Button variant="ghost" size="sm" className="h-9">
+                  Sign In
+                </Button>
+              </Link>
+              <Link to="/auth" className="hidden sm:block shrink-0">
+                <Button size="sm" className="bg-primary hover:bg-primary/90 h-9">
+                  Get Started
+                </Button>
+              </Link>
+
+              <Link to="/auth" className="sm:hidden shrink-0">
+                <Button size="sm" className="bg-primary hover:bg-primary/90 h-9 px-3 text-sm">
+                  Sign In
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>

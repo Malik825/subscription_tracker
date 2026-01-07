@@ -10,9 +10,19 @@ interface DashboardHeaderProps {
   title: string;
   subtitle?: string;
   onUpgradeClick?: () => void;
+  onAddSubscription?: () => void; // ✅ NEW: Handler for add subscription
+  searchValue?: string; // ✅ NEW: Search value
+  onSearchChange?: (value: string) => void; // ✅ NEW: Search handler
 }
 
-export function DashboardHeader({ title, subtitle, onUpgradeClick }: DashboardHeaderProps) {
+export function DashboardHeader({ 
+  title, 
+  subtitle, 
+  onUpgradeClick,
+  onAddSubscription, // ✅ NEW
+  searchValue = "", // ✅ NEW
+  onSearchChange, // ✅ NEW
+}: DashboardHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -44,6 +54,7 @@ export function DashboardHeader({ title, subtitle, onUpgradeClick }: DashboardHe
           </div>
         </div>
 
+        {/* ✅ FIXED: Mobile buttons with onClick handlers */}
         <div className="flex md:hidden items-center gap-1.5 shrink-0">
           <NotificationBell iconSize="sm" />
 
@@ -51,6 +62,7 @@ export function DashboardHeader({ title, subtitle, onUpgradeClick }: DashboardHe
             variant="default" 
             size="icon" 
             className="bg-primary hover:bg-primary/90 shrink-0 h-9 w-9"
+            onClick={onAddSubscription}
           >
             <Plus className="h-4 w-4" />
           </Button>
@@ -58,20 +70,25 @@ export function DashboardHeader({ title, subtitle, onUpgradeClick }: DashboardHe
       </div>
 
       <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full">
+        {/* ✅ FIXED: Search input with value and onChange */}
         <div className="relative flex-1 md:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search subscriptions..."
             className="w-full pl-9 h-10"
+            value={searchValue}
+            onChange={(e) => onSearchChange?.(e.target.value)}
           />
         </div>
 
+        {/* ✅ FIXED: Desktop button with onClick handler */}
         <div className="hidden md:flex items-center gap-3">
           <NotificationBell iconSize="md" />
 
           <Button 
             variant="default" 
             className="bg-primary hover:bg-primary/90 shrink-0"
+            onClick={onAddSubscription}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Subscription

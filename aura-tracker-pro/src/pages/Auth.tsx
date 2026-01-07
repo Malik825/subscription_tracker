@@ -10,11 +10,10 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { loginSchema, registerSchema, LoginInput, RegisterInput } from "@/schemas/auth";
 import { useLoginMutation, useRegisterMutation } from "@/api/authApi";
-import { SerializedError } from "@reduxjs/toolkit";
-import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import { useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
 
 // Type guard to check if error has data property
-function isFetchBaseQueryError(error: unknown): error is FetchBaseQueryError {
+function isFetchBaseQueryError(error: unknown): error is { status: number | string; data?: unknown } {
   return typeof error === 'object' && error != null && 'status' in error;
 }
 
@@ -35,8 +34,9 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { notifyMobile, vibrate, isMobile } = useMobileVoiceFeedback();
 
-  // RTK Query hooks - these automatically update the cache
+  // RTK Query hooks
   const [login, { isLoading: isLoginLoading }] = useLoginMutation();
   const [register, { isLoading: isRegisterLoading }] = useRegisterMutation();
 
@@ -50,7 +50,7 @@ export default function Auth() {
   } = useForm<RegisterInput>({
     resolver: zodResolver(isLogin ? loginSchema : registerSchema),
     defaultValues: {
-      fullName: "",
+      username: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -60,23 +60,37 @@ export default function Auth() {
   const onSubmit = async (data: LoginInput | RegisterInput) => {
     try {
       if (isLogin) {
-        // Login - RTK Query automatically caches the user data
+        // Login
         await login(data as LoginInput).unwrap();
         
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
+        // Mobile-optimized notification
+        await notifyMobile("Access granted. Welcome to your dashboard.", {
+          withSound: true,
+          withHaptic: true,
+          hapticPattern: 'success',
         });
         
-        // Navigate to dashboard - useAuth will automatically see the cached user
+        toast({ 
+          title: "Welcome back!", 
+          description: "You have successfully logged in." 
+        });
+        
+        // Navigate to dashboard
         navigate("/dashboard");
       } else {
         // Register
         await register(data as RegisterInput).unwrap();
         
-        toast({
-          title: "Account created!",
-          description: "Please check your email to verify your account before logging in.",
+        // Mobile-optimized notification
+        await notifyMobile("Account created successfully. Please check your email to verify your identity.", {
+          withSound: true,
+          withHaptic: true,
+          hapticPattern: 'success',
+        });
+        
+        toast({ 
+          title: "Account created!", 
+          description: "Please check your email to verify your account before logging in." 
         });
         
         setIsLogin(true);
@@ -93,6 +107,12 @@ export default function Auth() {
         errorMessage = error.message;
       }
       
+      // Voice feedback for error (no haptic for errors)
+      await notifyMobile(errorMessage, {
+        withSound: false,
+        withHaptic: false,
+      });
+      
       toast({
         variant: "destructive",
         title: "Authentication Failed",
@@ -103,6 +123,7 @@ export default function Auth() {
 
   const toggleAuthMode = (loginMode: boolean) => {
     setIsLogin(loginMode);
+    if (isMobile) vibrate('select');
     reset();
   };
 
@@ -112,6 +133,7 @@ export default function Auth() {
       <Link
         to="/"
         className="absolute top-6 left-6 z-50 flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors glass px-4 py-2 rounded-full border-border/40"
+        onClick={() => isMobile && vibrate('tap')}
       >
         <ArrowRight className="h-4 w-4 rotate-180" />
         Back to Home
@@ -216,18 +238,18 @@ export default function Auth() {
           >
             {!isLogin && (
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
+                <Label htmlFor="username">Full Name</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    id="fullName"
+                    id="username"
                     placeholder="John Doe"
-                    {...registerForm("fullName")}
-                    className={cn("pl-10", errors.fullName && "border-destructive focus-visible:ring-destructive")}
+                    {...registerForm("username")}
+                    className={cn("pl-10", errors.username && "border-destructive focus-visible:ring-destructive")}
                   />
                 </div>
-                {errors.fullName && (
-                  <p className="text-xs text-destructive">{errors.fullName.message}</p>
+                {errors.username && (
+                  <p className="text-xs text-destructive">{errors.username.message}</p>
                 )}
               </div>
             )}
@@ -262,7 +284,10 @@ export default function Auth() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() => {
+                    setShowPassword(!showPassword);
+                    if (isMobile) vibrate('tap');
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showPassword ? (
@@ -301,6 +326,7 @@ export default function Auth() {
                 <Link
                   to="/forgot-password"
                   className="text-sm text-primary hover:underline"
+                  onClick={() => isMobile && vibrate('tap')}
                 >
                   Forgot password?
                 </Link>

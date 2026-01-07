@@ -2,34 +2,30 @@ import arcjet, { shield, detectBot, tokenBucket } from "@arcjet/node";
 import { ARCJET_KEY } from "./env.js";
 
 const aj = arcjet({
-  // Get your site key from https://app.arcjet.com and set it as an environment
-  // variable rather than hard coding.
   key: ARCJET_KEY,
   rules: [
     // Shield protects your app from common attacks e.g. SQL injection
     shield({ mode: "LIVE" }),
+    
     // Create a bot detection rule
     detectBot({
-      mode: "LIVE", // Blocks requests. Use "DRY_RUN" to log only
-      // Block all bots except the following
+      mode: "LIVE",
       allow: [
         "CATEGORY:SEARCH_ENGINE", // Google, Bing, etc
-        // Uncomment to allow these other common bot categories
-        // See the full list at https://arcjet.com/bot-list
-        //"CATEGORY:MONITOR", // Uptime monitoring services
-        //"CATEGORY:PREVIEW", // Link previews e.g. Slack, Discord
+        // Uncomment if needed:
+        // "CATEGORY:MONITOR",       // Uptime monitoring services
+        // "CATEGORY:PREVIEW",       // Link previews e.g. Slack, Discord
       ],
     }),
-    // Create a token bucket rate limit. Other algorithms are supported.
+    
+    // ✅ UPDATED: More generous token bucket rate limit
     tokenBucket({
       mode: "LIVE",
-      // Tracked by IP address by default, but this can be customized
-      // See https://docs.arcjet.com/fingerprints
-      //characteristics: ["ip.src"],
-      refillRate: 5, // Refill 5 tokens per interval
-      interval: 10, // Refill every 10 seconds
-      capacity: 10, // Bucket capacity of 10 tokens
+      refillRate: 100,   // ✅ Refill 100 tokens per minute (was 5 per 10s)
+      interval: 60,      // ✅ Refill every 60 seconds (was 10s)
+      capacity: 150,     // ✅ Bucket capacity of 150 tokens (was 10)
     }),
   ],
 });
+
 export default aj;
