@@ -1,17 +1,19 @@
 import dayjs from "dayjs";
-import sgMail from "@sendgrid/mail";
-import { SENDGRID_API_KEY } from "../config/env.js";
+import { Resend } from "resend";
+import { RESEND_API_KEY, FRONTEND_URL } from "../config/env.js";
 import { emailTemplates, welcomeEmailTemplate } from "./email.template.js";
 
-if (!SENDGRID_API_KEY) {
+if (!RESEND_API_KEY) {
   throw new Error(
-    "SENDGRID_API_KEY is required but not found in environment variables"
+    "RESEND_API_KEY is required but not found in environment variables"
   );
 }
 
-sgMail.setApiKey(SENDGRID_API_KEY);
+const resend = new Resend(RESEND_API_KEY);
 
-const FROM_EMAIL = "abdulmaliksuleman75@gmail.com";
+// Use your custom domain email
+const FROM_EMAIL = "noreply@smartauratracker.com";
+const FROM_NAME = "SmartAura Tracker";
 
 export const sendReminderEmail = async ({ to, type, subscription }) => {
   try {
@@ -51,23 +53,27 @@ export const sendReminderEmail = async ({ to, type, subscription }) => {
       price: `${subscription.currency} ${subscription.price} (${subscription.frequency})`,
       paymentMethod: subscription.paymentMethod,
       accountSettingsLink:
-        "https://subscription-tracker-lovat.vercel.app/settings",
-      supportLink: "https://subscription-tracker-lovat.vercel.app/support",
+        `${FRONTEND_URL}/settings` ||
+        "https://www.smartauratracker.com/settings",
+      supportLink:
+        `${FRONTEND_URL}/support` || "https://www.smartauratracker.com/support",
     };
 
     const message = template.generateBody(mailInfo);
     const subject = template.generateSubject(mailInfo);
 
-    const msg = {
+    const { data, error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to: to,
-      from: FROM_EMAIL,
       subject: subject,
       html: message,
-    };
+    });
 
-    await sgMail.send(msg);
+    if (error) {
+      throw new Error(error.message);
+    }
 
-    return { success: true };
+    return { success: true, messageId: data?.id };
   } catch (error) {
     throw error;
   }
@@ -95,27 +101,31 @@ export const sendWelcomeEmail = async ({ to, subscription }) => {
       planName: subscription.name,
       price: `${subscription.currency} ${subscription.price} (${subscription.frequency})`,
       paymentMethod: subscription.paymentMethod || "Not specified",
-      accountSettingsLink:
-        FRONTEND_URL || "https://subscription-tracker-lovat.vercel.app",
+      accountSettingsLink: FRONTEND_URL || "https://www.smartauratracker.com",
       supportLink:
-        `${FRONTEND_URL}/support` ||
-        "https://subscription-tracker-lovat.vercel.app/support",
+        `${FRONTEND_URL}/support` || "https://www.smartauratracker.com/support",
       daysUntilRenewal: daysUntilRenewal > 0 ? daysUntilRenewal : 0,
     };
 
     const message = welcomeEmailTemplate.generateBody(mailInfo);
     const subject = welcomeEmailTemplate.generateSubject(mailInfo);
 
-    const msg = {
+    const { data, error } = await resend.emails.send({
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
       to: to,
-      from: FROM_EMAIL,
       subject: subject,
       html: message,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return {
+      success: true,
+      message: "Welcome email sent",
+      messageId: data?.id,
     };
-
-    await sgMail.send(msg);
-
-    return { success: true, message: "Welcome email sent" };
   } catch (error) {
     return { success: false, error: error.message };
   }
