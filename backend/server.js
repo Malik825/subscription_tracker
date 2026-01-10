@@ -19,6 +19,8 @@ import notificationRouter from "./routes/notifications.route.js";
 import { startReminderCron } from "./utils/check-reminders.cron.js";
 import notificationScheduler from "./utils/notificationScheduler.js"; // ← NEW: Import notification scheduler
 import settingsRouter from "./routes/settings.route.js";
+import paymentTrackingRoutes from "./routes/paymentTracking.routes.js";
+import sharingGroupRoutes from "./routes/sharingGroup.route.js";
 
 const app = express();
 
@@ -71,6 +73,8 @@ app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/ai", aiRoutes);
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/settings", settingsRouter);
+app.use("/api/v1/sharing-groups", sharingGroupRoutes);
+app.use("/api/v1/payment-tracking", paymentTrackingRoutes);
 
 app.use(errorHandler);
 
