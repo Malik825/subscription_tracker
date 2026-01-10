@@ -10,6 +10,9 @@ import NotFound from "./pages/NotFound";
 // Settings Integration - load immediately
 import { Toaster } from "./components/ui/toaster";
 import SettingsInitializer from "./components/SettingsInitializer";
+import { CostSplitCalculator } from "./components/CostSplitCalculator";
+import { PaymentTracking } from "./components/PaymentTracking";
+import SharingGroupDetails from "./pages/SharingGroupDetails";
 
 // Lazy load pages that aren't immediately needed
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -17,6 +20,7 @@ const Subscriptions = lazy(() => import("./pages/Subscriptions"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Calendar = lazy(() => import("./pages/Calendar"));
+const FamilySharing = lazy(() => import("./pages/FamilySharing"));
 const Settings = lazy(() => import("./pages/Settings"));
 const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 
@@ -34,7 +38,6 @@ const LoadingFallback = () => (
     </div>
   </div>
 );
-
 
 const App = () => (
   <BrowserRouter>
@@ -55,6 +58,10 @@ const App = () => (
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/family-sharing" element={<FamilySharing />} />
+            <Route path="/sharing-groups/:id" element={<SharingGroupDetails />} />
+            <Route path="/calculator" element={<CostSplitCalculator />} />
+            <Route path="/payment-tracking" element={<PaymentTracking />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/ai-assistant" element={<AIAssistant />} />
           </Route>

@@ -10,7 +10,8 @@ import {
   Bell,
   LogOut,
   Zap,
-  Sparkles, // ADD THIS
+  Sparkles,
+  Users, // ADD THIS
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,12 @@ const navItems = [
   { icon: CreditCard, label: "Subscriptions", path: "/subscriptions" },
   { icon: PieChart, label: "Analytics", path: "/analytics" },
   { icon: Calendar, label: "Calendar", path: "/calendar" },
+  { icon: Users, label: "Family Sharing", path: "/family-sharing" }, // ADD THIS
   { icon: Bell, label: "Notifications", path: "/notifications" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
-// ADD THIS - AI Features navigation
+// AI Features navigation
 const aiItems = [
   { 
     icon: Sparkles, 
@@ -43,20 +45,20 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
   const location = useLocation();
- const [logout] = useLogoutMutation();
+  const [logout] = useLogoutMutation();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-const handleLogout = async () => {
+  const handleLogout = async () => {
     try {
-        await logout().unwrap();
-        navigate("/auth");
+      await logout().unwrap();
+      navigate("/auth");
     } catch (error) {
-        // Handle error if needed
-        console.error("Logout failed:", error);
-        navigate("/auth"); // Navigate anyway
+      console.error("Logout failed:", error);
+      navigate("/auth");
     }
-};
+  };
+
   return (
     <aside
       className={cn(
@@ -79,7 +81,7 @@ const handleLogout = async () => {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
-        {/* AI Features Section - ADD THIS */}
+        {/* AI Features Section */}
         {!collapsed && (
           <div className="pb-2 opacity-0 animate-fade-in">
             <p className="px-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
