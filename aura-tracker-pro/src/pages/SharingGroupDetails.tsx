@@ -6,6 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Users,
   DollarSign,
@@ -14,39 +29,170 @@ import {
   Loader2,
   Receipt,
 } from "lucide-react";
-import { useGetSharingGroupByIdQuery } from "@/api/sharingApi";
+import { useGetSharingGroupByIdQuery, useAddSubscriptionToGroupMutation } from "@/api/sharingApi";
 import { useGetPaymentSummaryQuery } from "@/api/paymentTrackingApi";
+import { useGetSubscriptionsQuery } from "@/api/subscriptionApi";
 import { CostSplitCalculator } from "@/components/CostSplitCalculator";
 import { PaymentTracking } from "@/components/PaymentTracking";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { SerializedError } from "@reduxjs/toolkit";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 
+type SplitType = "equal" | "custom" | "percentage";
+
+interface ErrorWithData {
+  data?: {
+    message?: string;
+  };
+}
 
 export default function SharingGroupDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
+  const [isAddSubscriptionOpen, setIsAddSubscriptionOpen] = useState(false);
+  const [selectedSubscriptionId, setSelectedSubscriptionId] = useState("");
+  const [splitType, setSplitType] = useState<SplitType>("equal");
 
-  const { data: groupData, isLoading } = useGetSharingGroupByIdQuery(id!);
-  const { data: paymentSummary } = useGetPaymentSummaryQuery(id!);
+  const { data: groupData, isLoading, isError, error } = useGetSharingGroupByIdQuery(id!, {
+    skip: !id,
+    refetchOnMountOrArgChange: false,
+    refetchOnFocus: false,
+    refetchOnReconnect: false,
+  });
+  
+  const { data: paymentSummary, isError: isPaymentError } = useGetPaymentSummaryQuery(id!, {
+    skip: !id || !groupData,
+    refetchOnMountOrArgChange: false,
+    refetchOnFocus: false,
+    refetchOnReconnect: false,
+  });
+
+  // Fetch user's subscriptions for the dropdown
+  const { data: subscriptionsData } = useGetSubscriptionsQuery({ page: 1, limit: 100 });
+
+  // Add subscription to group mutation
+  const [addSubscriptionToGroup, { isLoading: isAdding }] = useAddSubscriptionToGroupMutation();
 
   const group = groupData?.data;
   const payments = paymentSummary?.data;
+  const userSubscriptions = subscriptionsData?.data || [];
+
+  // Filter out subscriptions already in the group
+  const availableSubscriptions = userSubscriptions.filter(
+    (sub) => !group?.sharedSubscriptions.some((shared) => shared.subscription._id === sub._id)
+  );
+
+  const isAuthError = error && 'status' in error && (error.status === 401 || error.status === 403);
+
+  const handleAddSubscription = async () => {
+    if (!selectedSubscriptionId) {
+      toast({
+        title: "Error",
+        description: "Please select a subscription",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await addSubscriptionToGroup({
+        id: id!,
+        data: {
+          subscriptionId: selectedSubscriptionId,
+          splitType,
+        },
+      }).unwrap();
+
+      toast({
+        title: "Success!",
+        description: "Subscription added to group successfully",
+      });
+
+      setIsAddSubscriptionOpen(false);
+      setSelectedSubscriptionId("");
+      setSplitType("equal");
+    } catch (err) {
+      const errorWithData = err as ErrorWithData;
+      toast({
+        title: "Error",
+        description: errorWithData.data?.message || "Failed to add subscription",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getErrorMessage = (error: FetchBaseQueryError | SerializedError | undefined): string => {
+    if (!error) return "Unable to load group details.";
+    
+    if ('data' in error) {
+      const errorData = error.data as ErrorWithData;
+      return errorData?.data?.message || "Unable to load group details.";
+    }
+    
+    if ('message' in error) {
+      return error.message || "Unable to load group details.";
+    }
+    
+    return "Unable to load group details.";
+  };
+
+  if (!id) {
+    navigate("/family-sharing");
+    return null;
+  }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading group details...</p>
+        </div>
       </div>
     );
   }
 
-if (!group) {
+  if (isAuthError) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold">Group Not Found</h2>
-          <Button onClick={() => navigate("/family-sharing")}>
-            Back to Groups
-          </Button>
+      <div className="flex items-center justify-center min-h-screen aura-bg">
+        <div className="glass rounded-2xl p-12 max-w-md text-center space-y-4">
+          <div className="text-6xl mb-4">🔐</div>
+          <h2 className="text-2xl font-bold">Authentication Required</h2>
+          <p className="text-muted-foreground">
+            Your session has expired or you're not logged in. Please log in to view this group.
+          </p>
+          <div className="pt-4 space-y-2">
+            <Button onClick={() => navigate("/auth")} className="w-full gap-2">
+              Log In
+            </Button>
+            <Button onClick={() => navigate("/family-sharing")} variant="outline" className="w-full gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Groups
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !group) {
+    const errorMessage = getErrorMessage(error);
+    
+    return (
+      <div className="flex items-center justify-center min-h-screen aura-bg">
+        <div className="glass rounded-2xl p-12 max-w-md text-center space-y-4">
+          <div className="text-6xl mb-4">🔒</div>
+          <h2 className="text-2xl font-bold">Access Denied</h2>
+          <p className="text-muted-foreground">{errorMessage}</p>
+          <div className="pt-4">
+            <Button onClick={() => navigate("/family-sharing")} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Groups
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -62,7 +208,7 @@ if (!group) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate("/sharing-groups")}
+                onClick={() => navigate("/family-sharing")}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -212,6 +358,14 @@ if (!group) {
                     </div>
                   </Card>
                 )}
+
+                {!payments && !isPaymentError && (
+                  <Card className="glass p-6">
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p className="text-sm">Payment tracking not yet configured</p>
+                    </div>
+                  </Card>
+                )}
               </div>
             </TabsContent>
 
@@ -219,7 +373,7 @@ if (!group) {
             <TabsContent value="subscriptions" className="space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Shared Subscriptions</h3>
-                <Button className="gap-2">
+                <Button className="gap-2" onClick={() => setIsAddSubscriptionOpen(true)}>
                   <Plus className="h-4 w-4" />
                   Add Subscription
                 </Button>
@@ -229,7 +383,7 @@ if (!group) {
                 <Card className="glass p-12">
                   <div className="text-center space-y-4">
                     <p className="text-muted-foreground">No subscriptions shared yet</p>
-                    <Button className="gap-2">
+                    <Button className="gap-2" onClick={() => setIsAddSubscriptionOpen(true)}>
                       <Plus className="h-4 w-4" />
                       Add Your First Subscription
                     </Button>
@@ -301,6 +455,64 @@ if (!group) {
               <PaymentTracking groupName={group.name} />
             </TabsContent>
           </Tabs>
+
+          {/* Add Subscription Dialog */}
+          <Dialog open={isAddSubscriptionOpen} onOpenChange={setIsAddSubscriptionOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Subscription to Group</DialogTitle>
+                <DialogDescription>
+                  Select a subscription from your list to share with this group
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="subscription">Select Subscription</Label>
+                  <Select value={selectedSubscriptionId} onValueChange={setSelectedSubscriptionId}>
+                    <SelectTrigger id="subscription">
+                      <SelectValue placeholder="Choose a subscription" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSubscriptions.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No subscriptions available
+                        </div>
+                      ) : (
+                        availableSubscriptions.map((sub) => (
+                          <SelectItem key={sub._id} value={sub._id}>
+                            {sub.name} - {sub.currency} {sub.price}/{sub.frequency}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="split-type">Split Type</Label>
+                  <Select value={splitType} onValueChange={(v) => setSplitType(v as SplitType)}>
+                    <SelectTrigger id="split-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="equal">Equal Split - Divide cost equally among all members</SelectItem>
+                      <SelectItem value="custom">Custom Split - Set custom amounts for each member</SelectItem>
+                      <SelectItem value="percentage">Percentage Split - Set percentage for each member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddSubscriptionOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddSubscription} disabled={isAdding || !selectedSubscriptionId}>
+                  {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Add to Group
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>
