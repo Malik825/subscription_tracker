@@ -102,7 +102,10 @@ export default function DashboardLayout() {
       '/analytics': 'Analytics',
       '/settings': 'Settings',
       '/categories': 'Categories',
-      '/notifications': 'Notifications'
+      '/notifications': 'Notifications',
+      '/calendar': 'Calendar',
+      '/family-sharing': 'Family Sharing',
+      '/ai-assistant': 'AI Assistant',
     };
     return routes[path] || null;
   }

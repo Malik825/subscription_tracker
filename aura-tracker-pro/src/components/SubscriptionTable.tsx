@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
-import { Subscription } from "@/hooks/useSubscriptions";
+import { Subscription } from "@/api/subscriptionApi";
 import { cn } from "@/lib/utils";
 
 interface SubscriptionTableProps {
@@ -88,7 +88,7 @@ export function SubscriptionTable({
                             </TableCell>
                             <TableCell className="text-muted-foreground">{sub.frequency}</TableCell>
                             <TableCell className="text-right font-semibold text-primary">
-                                ${sub.price.toFixed(2)}
+                                ${Number(sub.price).toFixed(2)}
                             </TableCell>
                             <TableCell>
                                 <Badge

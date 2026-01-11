@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Search, Filter, Grid, List, MoreHorizontal, Edit, Trash2, ExternalLink, Calendar as CalendarIcon, Loader2, Download, Info, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { useSubscriptions, useSubscriptionStats, useCreateSubscription, useUpdateSubscription, useDeleteSubscription, Subscription } from "@/hooks/useSubscriptions";
+import {
+  useGetSubscriptionsQuery,
+  useGetSubscriptionStatsQuery,
+  useCreateSubscriptionMutation,
+  useUpdateSubscriptionMutation,
+  useDeleteSubscriptionMutation,
+  Subscription,
+} from "@/api/subscriptionApi";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,7 +26,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   Select,
@@ -52,34 +58,35 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 
 export default function Subscriptions() {
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading
-  } = useSubscriptions();
-  const { data: stats } = useSubscriptionStats();
+  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  
+  const { data: subscriptionsData, isLoading } = useGetSubscriptionsQuery({
+    page,
+    limit: 100,
+    category: selectedCategory !== "All" ? selectedCategory : undefined,
+  });
+  
+  const { data: statsData } = useGetSubscriptionStatsQuery();
+  const stats = statsData?.data;
 
   const { user } = useAuth();
   const { announce } = useVoiceFeedback();
   
-  // Set grid view on mobile, list on desktop
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     return window.innerWidth < 768 ? "grid" : "list";
   });
   
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { toast } = useToast();
-  const createSubscription = useCreateSubscription();
-  const updateSubscription = useUpdateSubscription();
-  const deleteSubscription = useDeleteSubscription();
+  const [createSubscription, { isLoading: isCreating }] = useCreateSubscriptionMutation();
+  const [updateSubscription, { isLoading: isUpdating }] = useUpdateSubscriptionMutation();
+  const [deleteSubscription, { isLoading: isDeleting }] = useDeleteSubscriptionMutation();
 
   const form = useForm<SubscriptionInput>({
     resolver: zodResolver(subscriptionSchema),
@@ -95,7 +102,6 @@ export default function Subscriptions() {
     },
   });
 
-  // Update view mode on resize
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -106,7 +112,6 @@ export default function Subscriptions() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Announce page details when component mounts and stats are loaded
   useEffect(() => {
     if (stats && !isLoading) {
       const activeCount = stats.overview.active || 0;
@@ -122,8 +127,23 @@ export default function Subscriptions() {
 
   const onSubmit = async (data: SubscriptionInput) => {
     try {
+      // Transform the data to match API expectations
+      const apiData = {
+        name: data.name,
+        price: Number(data.price),
+        currency: data.currency,
+        frequency: data.frequency,
+        category: data.category,
+        startDate: data.startDate,
+        status: data.status,
+        website: data.website || undefined,
+      };
+
       if (editingSubscription) {
-        await updateSubscription.mutateAsync({ id: editingSubscription._id, data });
+        await updateSubscription({ 
+          id: editingSubscription._id, 
+          data: apiData 
+        }).unwrap();
         announce(
           `${data.name} subscription updated successfully. ` +
           `New price: ${data.price} per ${data.frequency.toLowerCase()}. ` +
@@ -131,7 +151,7 @@ export default function Subscriptions() {
         );
         toast({ title: "Success", description: "Subscription updated successfully" });
       } else {
-        await createSubscription.mutateAsync(data);
+        await createSubscription(apiData).unwrap();
         announce(
           `${data.name} subscription added successfully. ` +
           `Price: ${data.price} per ${data.frequency.toLowerCase()}. ` +
@@ -172,7 +192,7 @@ export default function Subscriptions() {
     const sub = allSubscriptions.find(s => s._id === id);
     if (confirm("Are you sure you want to delete this subscription?")) {
       try {
-        await deleteSubscription.mutateAsync(id);
+        await deleteSubscription(id).unwrap();
         announce(`${sub?.name || "Subscription"} deleted successfully.`);
         toast({ title: "Success", description: "Subscription deleted successfully" });
       } catch (err) {
@@ -182,32 +202,12 @@ export default function Subscriptions() {
     }
   };
 
-  const allSubscriptions = data?.pages.flatMap((page) => page.data) || [];
+  const allSubscriptions = subscriptionsData?.data || [];
 
   const filteredSubscriptions = allSubscriptions.filter((sub) => {
     const matchesSearch = sub.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "All" || sub.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return matchesSearch;
   });
-
-  const loadMoreRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const categories = ["All", "Entertainment", "Food", "Travel", "Shopping", "Subscription", "Others"];
 
@@ -236,18 +236,6 @@ export default function Subscriptions() {
         description: `Exporting ${count} subscriptions to CSV...`,
       });
     }
-  };
-
-  const handleViewModeChange = (mode: "grid" | "list") => {
-    setViewMode(mode);
-  };
-
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category);
-  };
-
-  const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
   };
 
   if (isLoading) {
@@ -286,10 +274,10 @@ export default function Subscriptions() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleViewModeChange("grid")}>
+                    <DropdownMenuItem onClick={() => setViewMode("grid")}>
                       <Grid className="h-4 w-4 mr-2" /> Grid View
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleViewModeChange("list")}>
+                    <DropdownMenuItem onClick={() => setViewMode("list")}>
                       <List className="h-4 w-4 mr-2" /> Table View
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -517,8 +505,8 @@ export default function Subscriptions() {
                       />
                     </div>
                     <DialogFooter className="pt-4">
-                      <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={createSubscription.isPending || updateSubscription.isPending}>
-                        {(createSubscription.isPending || updateSubscription.isPending) ? (
+                      <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isCreating || isUpdating}>
+                        {(isCreating || isUpdating) ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             {editingSubscription ? "Updating..." : "Adding..."}
@@ -559,10 +547,10 @@ export default function Subscriptions() {
                   placeholder="Search subscriptions..."
                   className="pl-10 h-10"
                   value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                 <SelectTrigger className="w-full sm:w-[160px] h-10">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />
@@ -579,7 +567,7 @@ export default function Subscriptions() {
           {/* Subscriptions Grid/Table */}
           {viewMode === "grid" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredSubscriptions.map((sub, index) => (
+              {filteredSubscriptions.map((sub) => (
                 <div
                   key={sub._id}
                   className="border border-border rounded-xl p-4 bg-card hover:border-primary/50 transition-colors"
@@ -655,16 +643,6 @@ export default function Subscriptions() {
               <p className="text-muted-foreground">No subscriptions found</p>
             </div>
           )}
-
-          {/* Infinite Scroll Trigger */}
-          <div ref={loadMoreRef} className="py-8 flex justify-center">
-            {isFetchingNextPage && (
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            )}
-            {!hasNextPage && filteredSubscriptions.length > 0 && (
-              <p className="text-sm text-muted-foreground">No more subscriptions to load</p>
-            )}
-          </div>
 
           <UpgradeModal
             isOpen={isUpgradeModalOpen}
