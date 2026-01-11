@@ -2,6 +2,9 @@ import SharingGroup from "../models/sharingGroup.model.js";
 import Subscription from "../models/subscription.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
+import { sendGroupInvitationEmail } from "../utils/send.email.js";
+
+// ========== EXISTING CONTROLLERS (UPDATED) ==========
 
 const createSharingGroup = async (req, res) => {
   try {
@@ -22,15 +25,20 @@ const createSharingGroup = async (req, res) => {
     };
 
     const membersList = [ownerMember];
+    const invitationsList = [];
 
+    // Create invitations instead of adding members directly
     if (members && Array.isArray(members)) {
       for (const memberEmail of members) {
         const user = await User.findOne({ email: memberEmail.trim() });
         if (user && user._id.toString() !== userId.toString()) {
-          membersList.push({
+          invitationsList.push({
             user: user._id,
+            email: user.email,
             role: "member",
-            joinedAt: new Date(),
+            invitedBy: userId,
+            invitedAt: new Date(),
+            status: "pending",
           });
         }
       }
@@ -41,11 +49,31 @@ const createSharingGroup = async (req, res) => {
       description: description?.trim() || "",
       owner: userId,
       members: membersList,
+      invitations: invitationsList,
       sharedSubscriptions: [],
       isActive: true,
     });
 
     await sharingGroup.populate("members.user", "username email");
+    await sharingGroup.populate("invitations.user", "username email");
+    await sharingGroup.populate("invitations.invitedBy", "username email");
+
+    // Send invitation emails
+    for (const invitation of invitationsList) {
+      try {
+        const invitedUser = await User.findById(invitation.user);
+        if (invitedUser) {
+          await sendGroupInvitationEmail({
+            recipientEmail: invitedUser.email,
+            recipientName: invitedUser.username,
+            groupName: sharingGroup.name,
+            inviterName: req.user.username,
+          });
+        }
+      } catch (emailError) {
+        console.error(`Failed to send invitation email:`, emailError);
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -116,22 +144,12 @@ const getUserSharingGroups = async (req, res) => {
   }
 };
 
-// Add this to your getSharingGroupById function for debugging
-
 const getSharingGroupById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
 
-    console.log("\n=== DEBUG: Get Sharing Group ===");
-    console.log("Timestamp:", new Date().toISOString());
-    console.log("Group ID:", id);
-    console.log("Authenticated User ID:", userId.toString());
-    console.log("User Email:", req.user.email);
-    console.log("User Username:", req.user.username);
-
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log("❌ Invalid group ID format");
       return res.status(400).json({
         success: false,
         message: "Invalid group ID",
@@ -143,49 +161,18 @@ const getSharingGroupById = async (req, res) => {
       .populate("sharedSubscriptions.subscription");
 
     if (!group) {
-      console.log("❌ Group not found in database");
       return res.status(404).json({
         success: false,
         message: "Sharing group not found",
       });
     }
 
-    console.log("✓ Group found:", group.name);
-    console.log("Group Owner:", group.owner.toString());
-    console.log("Total Members:", group.members.length);
-    console.log("Group members:");
-    group.members.forEach((member, index) => {
-      const isCurrentUser = member.user._id.toString() === userId.toString();
-      console.log(
-        `  ${index + 1}. ${
-          isCurrentUser ? ">>> " : ""
-        }User ID: ${member.user._id.toString()}`
-      );
-      console.log(`     Role: ${member.role}`);
-      console.log(`     Username: ${member.user.username}`);
-      console.log(`     Email: ${member.user.email}`);
-      console.log(`     Match: ${isCurrentUser ? "YES ✓" : "NO"}`);
-    });
-
-    // Check membership
-    const isMemberResult = group.isMember(userId);
-    console.log("\nMembership check result:", isMemberResult);
-
-    if (!isMemberResult) {
-      console.log("❌ ACCESS DENIED - User is not a member");
-      console.log("Expected to find:", userId.toString());
-      console.log(
-        "In members list:",
-        group.members.map((m) => m.user._id.toString())
-      );
-
+    if (!group.isMember(userId)) {
       return res.status(403).json({
         success: false,
         message: "You are not a member of this group",
       });
     }
-
-    console.log("✓ ACCESS GRANTED - User is a member\n");
 
     const totalMonthly = group.sharedSubscriptions.reduce((sum, sub) => {
       if (sub.subscription && sub.subscription.price) {
@@ -225,6 +212,365 @@ const getSharingGroupById = async (req, res) => {
   }
 };
 
+// Updated addMember - now creates invitation instead
+const addMember = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, role = "member" } = req.body;
+    const userId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid group ID",
+      });
+    }
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Member email is required",
+      });
+    }
+
+    const group = await SharingGroup.findById(id);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Sharing group not found",
+      });
+    }
+
+    if (!group.canManage(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only owner or admin can invite members",
+      });
+    }
+
+    const newUser = await User.findOne({ email: email.trim() });
+
+    if (!newUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    if (group.isMember(newUser._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "User is already a member of this group",
+      });
+    }
+
+    if (group.hasPendingInvitation(newUser._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "User already has a pending invitation to this group",
+      });
+    }
+
+    // Create invitation instead of adding directly
+    group.invitations.push({
+      user: newUser._id,
+      email: newUser.email,
+      role: role,
+      invitedBy: userId,
+      invitedAt: new Date(),
+      status: "pending",
+    });
+
+    await group.save();
+    await group.populate("invitations.user", "username email");
+    await group.populate("invitations.invitedBy", "username email");
+
+    // Send invitation email
+    try {
+      await sendGroupInvitationEmail({
+        recipientEmail: newUser.email,
+        recipientName: newUser.username,
+        groupName: group.name,
+        inviterName: req.user.username,
+      });
+    } catch (emailError) {
+      console.error(`Failed to send invitation email:`, emailError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Invitation sent successfully",
+      data: group,
+    });
+  } catch (error) {
+    console.error("Add member error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to send invitation",
+      error: error.message,
+    });
+  }
+};
+
+// ========== NEW INVITATION CONTROLLERS ==========
+
+// Get user's pending invitations
+const getUserInvitations = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const groups = await SharingGroup.find({
+      "invitations.user": userId,
+      "invitations.status": "pending",
+      isActive: true,
+    })
+      .populate("owner", "username email")
+      .populate("invitations.invitedBy", "username email")
+      .populate("members.user", "username email");
+
+    // Clean up expired invitations and filter
+    const validInvitations = [];
+
+    for (const group of groups) {
+      group.cleanupExpiredInvitations();
+      await group.save();
+
+      const userInvitation = group.invitations.find(
+        (inv) =>
+          inv.user.toString() === userId.toString() && inv.status === "pending"
+      );
+
+      if (userInvitation) {
+        validInvitations.push({
+          _id: userInvitation._id,
+          group: {
+            _id: group._id,
+            name: group.name,
+            description: group.description,
+            memberCount: group.members.length,
+            subscriptionCount: group.sharedSubscriptions.length,
+          },
+          role: userInvitation.role,
+          invitedBy: userInvitation.invitedBy,
+          invitedAt: userInvitation.invitedAt,
+          expiresAt: userInvitation.expiresAt,
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: validInvitations,
+    });
+  } catch (error) {
+    console.error("Get user invitations error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve invitations",
+      error: error.message,
+    });
+  }
+};
+
+// Accept invitation
+const acceptInvitation = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid group ID",
+      });
+    }
+
+    const group = await SharingGroup.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Sharing group not found",
+      });
+    }
+
+    const invitationIndex = group.invitations.findIndex(
+      (inv) =>
+        inv.user.toString() === userId.toString() && inv.status === "pending"
+    );
+
+    if (invitationIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "No pending invitation found",
+      });
+    }
+
+    const invitation = group.invitations[invitationIndex];
+
+    // Check if invitation has expired
+    if (new Date(invitation.expiresAt) <= new Date()) {
+      invitation.status = "expired";
+      await group.save();
+      return res.status(400).json({
+        success: false,
+        message: "Invitation has expired",
+      });
+    }
+
+    // Check if user is already a member
+    if (group.isMember(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "You are already a member of this group",
+      });
+    }
+
+    // Add user as member
+    group.members.push({
+      user: userId,
+      role: invitation.role,
+      joinedAt: new Date(),
+    });
+
+    // Update invitation status
+    invitation.status = "accepted";
+
+    await group.save();
+    await group.populate("members.user", "username email");
+
+    res.status(200).json({
+      success: true,
+      message: "Invitation accepted successfully",
+      data: group,
+    });
+  } catch (error) {
+    console.error("Accept invitation error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to accept invitation",
+      error: error.message,
+    });
+  }
+};
+
+// Decline invitation
+const declineInvitation = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    if (!mongoose.Types.ObjectId.isValid(groupId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid group ID",
+      });
+    }
+
+    const group = await SharingGroup.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Sharing group not found",
+      });
+    }
+
+    const invitationIndex = group.invitations.findIndex(
+      (inv) =>
+        inv.user.toString() === userId.toString() && inv.status === "pending"
+    );
+
+    if (invitationIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "No pending invitation found",
+      });
+    }
+
+    // Update invitation status to declined
+    group.invitations[invitationIndex].status = "declined";
+
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Invitation declined successfully",
+    });
+  } catch (error) {
+    console.error("Decline invitation error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to decline invitation",
+      error: error.message,
+    });
+  }
+};
+
+// Cancel invitation (by group admin/owner)
+const cancelInvitation = async (req, res) => {
+  try {
+    const { groupId, invitationId } = req.params;
+    const userId = req.user._id;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(groupId) ||
+      !mongoose.Types.ObjectId.isValid(invitationId)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid ID",
+      });
+    }
+
+    const group = await SharingGroup.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Sharing group not found",
+      });
+    }
+
+    if (!group.canManage(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only owner or admin can cancel invitations",
+      });
+    }
+
+    const invitationIndex = group.invitations.findIndex(
+      (inv) => inv._id.toString() === invitationId
+    );
+
+    if (invitationIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Invitation not found",
+      });
+    }
+
+    // Remove the invitation
+    group.invitations.splice(invitationIndex, 1);
+
+    await group.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Invitation cancelled successfully",
+    });
+  } catch (error) {
+    console.error("Cancel invitation error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to cancel invitation",
+      error: error.message,
+    });
+  }
+};
+
+// Keep existing controllers
 const updateSharingGroup = async (req, res) => {
   try {
     const { id } = req.params;
@@ -320,82 +666,6 @@ const deleteSharingGroup = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to delete sharing group",
-      error: error.message,
-    });
-  }
-};
-
-const addMember = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email, role = "member" } = req.body;
-    const userId = req.user._id;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid group ID",
-      });
-    }
-
-    if (!email || !email.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Member email is required",
-      });
-    }
-
-    const group = await SharingGroup.findById(id);
-
-    if (!group) {
-      return res.status(404).json({
-        success: false,
-        message: "Sharing group not found",
-      });
-    }
-
-    if (!group.canManage(userId)) {
-      return res.status(403).json({
-        success: false,
-        message: "Only owner or admin can add members",
-      });
-    }
-
-    const newUser = await User.findOne({ email: email.trim() });
-
-    if (!newUser) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    if (group.isMember(newUser._id)) {
-      return res.status(400).json({
-        success: false,
-        message: "User is already a member of this group",
-      });
-    }
-
-    group.members.push({
-      user: newUser._id,
-      role: role,
-      joinedAt: new Date(),
-    });
-
-    await group.save();
-    await group.populate("members.user", "username email");
-
-    res.status(200).json({
-      success: true,
-      message: "Member added successfully",
-      data: group,
-    });
-  } catch (error) {
-    console.error("Add member error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to add member",
       error: error.message,
     });
   }
@@ -672,4 +942,9 @@ export {
   addSubscriptionToGroup,
   removeSubscriptionFromGroup,
   updateSplitConfiguration,
+  // New invitation exports
+  getUserInvitations,
+  acceptInvitation,
+  declineInvitation,
+  cancelInvitation,
 };

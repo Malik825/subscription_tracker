@@ -36,6 +36,43 @@ const sharingGroupSchema = new mongoose.Schema(
         },
       },
     ],
+    // NEW: Pending invitations
+    invitations: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        email: {
+          type: String,
+          required: true,
+        },
+        role: {
+          type: String,
+          enum: ["admin", "member"],
+          default: "member",
+        },
+        invitedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        invitedAt: {
+          type: Date,
+          default: Date.now,
+        },
+        status: {
+          type: String,
+          enum: ["pending", "accepted", "declined", "expired"],
+          default: "pending",
+        },
+        expiresAt: {
+          type: Date,
+          default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        },
+      },
+    ],
     sharedSubscriptions: [
       {
         subscription: {
@@ -81,36 +118,44 @@ const sharingGroupSchema = new mongoose.Schema(
   }
 );
 
-// Index for faster queries
+// Indexes for faster queries
 sharingGroupSchema.index({ owner: 1 });
 sharingGroupSchema.index({ "members.user": 1 });
+sharingGroupSchema.index({ "invitations.user": 1 });
+sharingGroupSchema.index({ "invitations.status": 1 });
 
 // Virtual for total monthly cost
 sharingGroupSchema.virtual("totalMonthly").get(function () {
-  // This would be calculated based on shared subscriptions
-  return 0; // Placeholder
+  return 0; // Placeholder - calculated in controller
 });
 
-// Method to check if user is member - FIXED to handle both populated and unpopulated users
+// Method to check if user is member
 sharingGroupSchema.methods.isMember = function (userId) {
-  // Convert userId to string for comparison
   const userIdStr = userId.toString();
-
-  // Check if user is in members array
-  // Handle both populated (user is object with _id) and unpopulated (user is ObjectId) cases
-  const isMember = this.members.some((member) => {
-    // If member.user is populated (an object), use member.user._id
-    // If member.user is just an ObjectId, use it directly
+  return this.members.some((member) => {
     const memberId = member.user._id
       ? member.user._id.toString()
       : member.user.toString();
     return memberId === userIdStr;
   });
-
-  return isMember;
 };
 
-// Method to check if user is owner or admin - FIXED to handle populated users
+// Method to check if user has pending invitation
+sharingGroupSchema.methods.hasPendingInvitation = function (userId) {
+  const userIdStr = userId.toString();
+  return this.invitations.some((invite) => {
+    const inviteUserId = invite.user._id
+      ? invite.user._id.toString()
+      : invite.user.toString();
+    return (
+      inviteUserId === userIdStr &&
+      invite.status === "pending" &&
+      new Date(invite.expiresAt) > new Date()
+    );
+  });
+};
+
+// Method to check if user is owner or admin
 sharingGroupSchema.methods.canManage = function (userId) {
   const member = this.members.find((m) => {
     const memberId = m.user._id ? m.user._id.toString() : m.user.toString();
@@ -119,25 +164,34 @@ sharingGroupSchema.methods.canManage = function (userId) {
   return member && (member.role === "owner" || member.role === "admin");
 };
 
-// Method to calculate user's share - FIXED VERSION
+// Method to calculate user's share
 sharingGroupSchema.methods.calculateUserShare = function (
   userId,
   subscriptionPrice
 ) {
-  // Check if user is a member first
   if (!this.isMember(userId)) {
     return 0;
   }
 
-  // For equal split (most common case)
   const activeMembers = this.members.filter((m) => m.user).length;
 
   if (activeMembers === 0) {
     return 0;
   }
 
-  // Simple equal split by default
   return subscriptionPrice / activeMembers;
+};
+
+// Method to clean up expired invitations
+sharingGroupSchema.methods.cleanupExpiredInvitations = function () {
+  const now = new Date();
+  this.invitations = this.invitations.filter((invite) => {
+    if (invite.status === "pending" && new Date(invite.expiresAt) <= now) {
+      invite.status = "expired";
+      return false;
+    }
+    return invite.status === "pending";
+  });
 };
 
 const SharingGroup = mongoose.model("SharingGroup", sharingGroupSchema);
