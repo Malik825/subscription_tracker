@@ -220,7 +220,7 @@ export default function SharingGroupDetails() {
               </div>
             </div>
             <div className="flex gap-2">
-              <CostSplitCalculator />
+              <CostSplitCalculator group={group} />
               <Button
                 variant="outline"
                 onClick={() => navigate(`/sharing-groups/${id}/settings`)}

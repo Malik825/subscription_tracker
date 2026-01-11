@@ -2,6 +2,7 @@ import SharingGroup from "../models/sharingGroup.model.js";
 import Subscription from "../models/subscription.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
+import { sendGroupInvitationEmail } from "../utils/send.email.js";
 
 const createSharingGroup = async (req, res) => {
   try {
@@ -22,6 +23,7 @@ const createSharingGroup = async (req, res) => {
     };
 
     const membersList = [ownerMember];
+    const invitedUsers = [];
 
     if (members && Array.isArray(members)) {
       for (const memberEmail of members) {
@@ -32,6 +34,7 @@ const createSharingGroup = async (req, res) => {
             role: "member",
             joinedAt: new Date(),
           });
+          invitedUsers.push(user);
         }
       }
     }
@@ -46,6 +49,23 @@ const createSharingGroup = async (req, res) => {
     });
 
     await sharingGroup.populate("members.user", "username email");
+
+    // Send invitation emails to new members
+    for (const user of invitedUsers) {
+      try {
+        await sendGroupInvitationEmail({
+          recipientEmail: user.email,
+          recipientName: user.username,
+          groupName: sharingGroup.name,
+          inviterName: req.user.username,
+        });
+      } catch (emailError) {
+        console.error(
+          `Failed to send invitation email to ${user.email}:`,
+          emailError
+        );
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -116,22 +136,12 @@ const getUserSharingGroups = async (req, res) => {
   }
 };
 
-// Add this to your getSharingGroupById function for debugging
-
 const getSharingGroupById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
 
-    console.log("\n=== DEBUG: Get Sharing Group ===");
-    console.log("Timestamp:", new Date().toISOString());
-    console.log("Group ID:", id);
-    console.log("Authenticated User ID:", userId.toString());
-    console.log("User Email:", req.user.email);
-    console.log("User Username:", req.user.username);
-
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log("❌ Invalid group ID format");
       return res.status(400).json({
         success: false,
         message: "Invalid group ID",
@@ -143,49 +153,18 @@ const getSharingGroupById = async (req, res) => {
       .populate("sharedSubscriptions.subscription");
 
     if (!group) {
-      console.log("❌ Group not found in database");
       return res.status(404).json({
         success: false,
         message: "Sharing group not found",
       });
     }
 
-    console.log("✓ Group found:", group.name);
-    console.log("Group Owner:", group.owner.toString());
-    console.log("Total Members:", group.members.length);
-    console.log("Group members:");
-    group.members.forEach((member, index) => {
-      const isCurrentUser = member.user._id.toString() === userId.toString();
-      console.log(
-        `  ${index + 1}. ${
-          isCurrentUser ? ">>> " : ""
-        }User ID: ${member.user._id.toString()}`
-      );
-      console.log(`     Role: ${member.role}`);
-      console.log(`     Username: ${member.user.username}`);
-      console.log(`     Email: ${member.user.email}`);
-      console.log(`     Match: ${isCurrentUser ? "YES ✓" : "NO"}`);
-    });
-
-    // Check membership
-    const isMemberResult = group.isMember(userId);
-    console.log("\nMembership check result:", isMemberResult);
-
-    if (!isMemberResult) {
-      console.log("❌ ACCESS DENIED - User is not a member");
-      console.log("Expected to find:", userId.toString());
-      console.log(
-        "In members list:",
-        group.members.map((m) => m.user._id.toString())
-      );
-
+    if (!group.isMember(userId)) {
       return res.status(403).json({
         success: false,
         message: "You are not a member of this group",
       });
     }
-
-    console.log("✓ ACCESS GRANTED - User is a member\n");
 
     const totalMonthly = group.sharedSubscriptions.reduce((sum, sub) => {
       if (sub.subscription && sub.subscription.price) {
@@ -385,6 +364,21 @@ const addMember = async (req, res) => {
 
     await group.save();
     await group.populate("members.user", "username email");
+
+    // Send invitation email to the new member
+    try {
+      await sendGroupInvitationEmail({
+        recipientEmail: newUser.email,
+        recipientName: newUser.username,
+        groupName: group.name,
+        inviterName: req.user.username,
+      });
+    } catch (emailError) {
+      console.error(
+        `Failed to send invitation email to ${newUser.email}:`,
+        emailError
+      );
+    }
 
     res.status(200).json({
       success: true,

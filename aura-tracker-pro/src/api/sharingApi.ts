@@ -51,7 +51,8 @@ interface ApiResponse<T> {
 export const sharingApi = createApi({
   reducerPath: "sharingApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_API_URL || "/api",
+    baseUrl: import.meta.env.VITE_API_URL || "http://localhost:5500/api/v1",
+
     credentials: "include", // This is CRITICAL - ensures cookies are sent
     prepareHeaders: (headers) => {
       // Add any additional headers if needed
