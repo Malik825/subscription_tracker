@@ -36,6 +36,16 @@ import { CostSplitCalculator } from "@/components/CostSplitCalculator";
 import { PaymentTracking } from "@/components/PaymentTracking";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { SerializedError } from "@reduxjs/toolkit";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+
+type SplitType = "equal" | "custom" | "percentage";
+
+interface ErrorWithData {
+  data?: {
+    message?: string;
+  };
+}
 
 export default function SharingGroupDetails() {
   const { id } = useParams<{ id: string }>();
@@ -44,7 +54,7 @@ export default function SharingGroupDetails() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isAddSubscriptionOpen, setIsAddSubscriptionOpen] = useState(false);
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState("");
-  const [splitType, setSplitType] = useState<"equal" | "custom" | "percentage">("equal");
+  const [splitType, setSplitType] = useState<SplitType>("equal");
 
   const { data: groupData, isLoading, isError, error } = useGetSharingGroupByIdQuery(id!, {
     skip: !id,
@@ -104,14 +114,29 @@ export default function SharingGroupDetails() {
       setIsAddSubscriptionOpen(false);
       setSelectedSubscriptionId("");
       setSplitType("equal");
-    } catch (error: unknown) {
-      const err = error as { data?: { message?: string } };
+    } catch (err) {
+      const errorWithData = err as ErrorWithData;
       toast({
         title: "Error",
-        description: err.data?.message || "Failed to add subscription",
+        description: errorWithData.data?.message || "Failed to add subscription",
         variant: "destructive",
       });
     }
+  };
+
+  const getErrorMessage = (error: FetchBaseQueryError | SerializedError | undefined): string => {
+    if (!error) return "Unable to load group details.";
+    
+    if ('data' in error) {
+      const errorData = error.data as ErrorWithData;
+      return errorData?.data?.message || "Unable to load group details.";
+    }
+    
+    if ('message' in error) {
+      return error.message || "Unable to load group details.";
+    }
+    
+    return "Unable to load group details.";
   };
 
   if (!id) {
@@ -154,7 +179,7 @@ export default function SharingGroupDetails() {
   }
 
   if (isError || !group) {
-    const errorMessage = (error as any)?.data?.message || "Unable to load group details.";
+    const errorMessage = getErrorMessage(error);
     
     return (
       <div className="flex items-center justify-center min-h-screen aura-bg">
@@ -465,7 +490,7 @@ export default function SharingGroupDetails() {
 
                 <div className="space-y-2">
                   <Label htmlFor="split-type">Split Type</Label>
-                  <Select value={splitType} onValueChange={(v) => setSplitType(v as typeof splitType)}>
+                  <Select value={splitType} onValueChange={(v) => setSplitType(v as SplitType)}>
                     <SelectTrigger id="split-type">
                       <SelectValue />
                     </SelectTrigger>
