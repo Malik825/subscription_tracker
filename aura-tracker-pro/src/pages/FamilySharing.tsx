@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, Plus, UserPlus, Mail, DollarSign, Trash2, Edit, Check, X, Crown, Shield, Loader2 } from "lucide-react";
+import { Users, Plus, UserPlus, Mail, DollarSign, Trash2, Edit, Check, X, Crown, Shield, Loader2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,9 @@ import {
   useCreateSharingGroupMutation,
   useAddMemberMutation,
   useRemoveMemberMutation,
+  useGetUserInvitationsQuery,
+  useAcceptInvitationMutation,
+  useDeclineInvitationMutation,
 } from "@/api/sharingApi";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -48,11 +51,15 @@ export default function FamilySharing() {
 
   // API hooks
   const { data: groupsData, isLoading } = useGetUserSharingGroupsQuery();
+  const { data: invitationsData, isLoading: isLoadingInvitations } = useGetUserInvitationsQuery();
   const [createGroup, { isLoading: isCreating }] = useCreateSharingGroupMutation();
   const [addMember, { isLoading: isInviting }] = useAddMemberMutation();
   const [removeMember, { isLoading: isRemoving }] = useRemoveMemberMutation();
+  const [acceptInvitation, { isLoading: isAccepting }] = useAcceptInvitationMutation();
+  const [declineInvitation, { isLoading: isDeclining }] = useDeclineInvitationMutation();
 
   const groups = groupsData?.data || [];
+  const invitations = invitationsData?.data || [];
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
@@ -119,7 +126,7 @@ export default function FamilySharing() {
 
       toast({
         title: "Success!",
-        description: "Member invited successfully",
+        description: "Invitation sent successfully",
       });
 
       setInviteEmail("");
@@ -129,7 +136,7 @@ export default function FamilySharing() {
       const err = error as { data?: { message?: string } };
       toast({
         title: "Error",
-        description: err.data?.message || "Failed to invite member",
+        description: err.data?.message || "Failed to send invitation",
         variant: "destructive",
       });
     }
@@ -151,6 +158,58 @@ export default function FamilySharing() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleAcceptInvitation = async (groupId: string) => {
+    try {
+      await acceptInvitation(groupId).unwrap();
+      
+      toast({
+        title: "Success!",
+        description: "Invitation accepted successfully. Welcome to the group!",
+      });
+      
+      // Switch to groups tab to see the newly joined group
+      setActiveTab("groups");
+    } catch (error: unknown) {
+      const err = error as { data?: { message?: string } };
+      toast({
+        title: "Error",
+        description: err.data?.message || "Failed to accept invitation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeclineInvitation = async (groupId: string) => {
+    try {
+      await declineInvitation(groupId).unwrap();
+      
+      toast({
+        title: "Invitation Declined",
+        description: "You have declined the group invitation",
+      });
+    } catch (error: unknown) {
+      const err = error as { data?: { message?: string } };
+      toast({
+        title: "Error",
+        description: err.data?.message || "Failed to decline invitation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatTimeRemaining = (expiresAt: string) => {
+    const now = new Date();
+    const expires = new Date(expiresAt);
+    const diff = expires.getTime() - now.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    
+    if (days > 1) return `${days} days left`;
+    if (days === 1) return "1 day left";
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    if (hours > 0) return `${hours} hours left`;
+    return "Expiring soon";
   };
 
   if (isLoading) {
@@ -284,7 +343,9 @@ export default function FamilySharing() {
               <TabsTrigger value="invitations" className="gap-2">
                 <Mail className="h-4 w-4" />
                 Invitations
-                <Badge variant="default" className="ml-1 h-5 px-2">0</Badge>
+                {invitations.length > 0 && (
+                  <Badge variant="default" className="ml-1 h-5 px-2">{invitations.length}</Badge>
+                )}
               </TabsTrigger>
             </TabsList>
 
@@ -502,21 +563,96 @@ export default function FamilySharing() {
 
             {/* Invitations Tab */}
             <TabsContent value="invitations" className="space-y-4">
-              <div className="glass rounded-2xl p-12">
-                <div className="text-center space-y-4">
-                  <div className="flex justify-center">
-                    <div className="p-4 rounded-full bg-muted">
-                      <Mail className="h-12 w-12 text-muted-foreground" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">No pending invitations</h3>
-                    <p className="text-muted-foreground">
-                      You don't have any pending group invitations at the moment
-                    </p>
+              {isLoadingInvitations ? (
+                <div className="glass rounded-2xl p-12">
+                  <div className="text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+                    <p className="text-muted-foreground mt-4">Loading invitations...</p>
                   </div>
                 </div>
-              </div>
+              ) : invitations.length === 0 ? (
+                <div className="glass rounded-2xl p-12">
+                  <div className="text-center space-y-4">
+                    <div className="flex justify-center">
+                      <div className="p-4 rounded-full bg-muted">
+                        <Mail className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold mb-2">No pending invitations</h3>
+                      <p className="text-muted-foreground">
+                        You don't have any pending group invitations at the moment
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {invitations.map((invitation) => (
+                    <div key={invitation._id} className="glass rounded-2xl p-6 animate-fade-in">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-xl font-semibold">{invitation.group.name}</h3>
+                            <Badge variant="outline" className="capitalize">{invitation.role}</Badge>
+                          </div>
+                          {invitation.group.description && (
+                            <p className="text-sm text-muted-foreground mb-3">{invitation.group.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-2">
+                              <Users className="h-4 w-4" />
+                              {invitation.group.memberCount} members
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <Shield className="h-4 w-4" />
+                              {invitation.group.subscriptionCount} subscriptions
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-4 p-3 rounded-lg bg-muted/30">
+                        <p className="text-sm">
+                          <span className="font-medium">{invitation.invitedBy.username}</span> invited you to join this group
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {formatTimeRemaining(invitation.expiresAt)}
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button 
+                          onClick={() => handleAcceptInvitation(invitation.group._id)} 
+                          disabled={isAccepting || isDeclining}
+                          className="flex-1 gap-2"
+                        >
+                          {isAccepting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4" />
+                          )}
+                          Accept
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeclineInvitation(invitation.group._id)} 
+                          disabled={isAccepting || isDeclining}
+                          variant="outline"
+                          className="flex-1 gap-2"
+                        >
+                          {isDeclining ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
