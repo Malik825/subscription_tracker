@@ -13,11 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+type PaymentStatus = "paid" | "pending" | "overdue";
+
 interface Payment {
   id: string;
   member: string;
   amount: number;
-  status: "paid" | "pending" | "overdue";
+  status: PaymentStatus;
   dueDate: string;
   paidDate?: string;
 }
@@ -64,7 +66,7 @@ export function PaymentTracking({ groupName = "Family Plan" }: { groupName?: str
     console.log("Sending reminder for payment:", id);
   };
 
-  const getStatusIcon = (status: Payment["status"]) => {
+  const getStatusIcon = (status: PaymentStatus) => {
     switch (status) {
       case "paid":
         return <CheckCircle className="h-5 w-5 text-green-500" />;
@@ -75,14 +77,14 @@ export function PaymentTracking({ groupName = "Family Plan" }: { groupName?: str
     }
   };
 
-  const getStatusBadge = (status: Payment["status"]) => {
-    const variants = {
+  const getStatusBadge = (status: PaymentStatus) => {
+    const variants: Record<PaymentStatus, "default" | "secondary" | "destructive"> = {
       paid: "default",
       pending: "secondary",
       overdue: "destructive"
     };
     return (
-      <Badge variant={variants[status] as any} className="capitalize">
+      <Badge variant={variants[status]} className="capitalize">
         {status}
       </Badge>
     );
