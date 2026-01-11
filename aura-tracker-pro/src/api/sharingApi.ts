@@ -10,6 +10,44 @@ export interface SharingGroupMember {
   joinedAt: string;
 }
 
+export interface GroupInvitation {
+  _id: string;
+  user: {
+    _id: string;
+    username: string;
+    email: string;
+  };
+  email: string;
+  role: "admin" | "member";
+  invitedBy: {
+    _id: string;
+    username: string;
+    email: string;
+  };
+  invitedAt: string;
+  status: "pending" | "accepted" | "declined" | "expired";
+  expiresAt: string;
+}
+
+export interface UserInvitation {
+  _id: string;
+  group: {
+    _id: string;
+    name: string;
+    description?: string;
+    memberCount: number;
+    subscriptionCount: number;
+  };
+  role: "admin" | "member";
+  invitedBy: {
+    _id: string;
+    username: string;
+    email: string;
+  };
+  invitedAt: string;
+  expiresAt: string;
+}
+
 export interface SharedSubscription {
   subscription: {
     _id: string;
@@ -32,6 +70,7 @@ export interface SharingGroup {
   description?: string;
   owner: string;
   members: SharingGroupMember[];
+  invitations: GroupInvitation[];
   sharedSubscriptions: SharedSubscription[];
   isActive: boolean;
   createdAt: string;
@@ -51,15 +90,55 @@ interface ApiResponse<T> {
 export const sharingApi = createApi({
   reducerPath: "sharingApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: import.meta.env.VITE_API_URL || "/api",
-    credentials: "include", // This is CRITICAL - ensures cookies are sent
+    baseUrl: import.meta.env.VITE_API_URL || "http://localhost:5500/api/v1",
+    credentials: "include",
     prepareHeaders: (headers) => {
-      // Add any additional headers if needed
       return headers;
     },
   }),
-  tagTypes: ["SharingGroups", "SharingGroup"],
+  tagTypes: ["SharingGroups", "SharingGroup", "Invitations"],
   endpoints: (builder) => ({
+    // ========== INVITATION ENDPOINTS ==========
+    // Get user's pending invitations
+    getUserInvitations: builder.query<ApiResponse<UserInvitation[]>, void>({
+      query: () => "/sharing-groups/invitations",
+      providesTags: ["Invitations"],
+    }),
+
+    // Accept invitation
+    acceptInvitation: builder.mutation<ApiResponse<SharingGroup>, string>({
+      query: (groupId) => ({
+        url: `/sharing-groups/invitations/${groupId}/accept`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Invitations", "SharingGroups"],
+    }),
+
+    // Decline invitation
+    declineInvitation: builder.mutation<ApiResponse<void>, string>({
+      query: (groupId) => ({
+        url: `/sharing-groups/invitations/${groupId}/decline`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Invitations"],
+    }),
+
+    // Cancel invitation (by admin)
+    cancelInvitation: builder.mutation<
+      ApiResponse<void>,
+      { groupId: string; invitationId: string }
+    >({
+      query: ({ groupId, invitationId }) => ({
+        url: `/sharing-groups/${groupId}/invitations/${invitationId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (result, error, { groupId }) => [
+        { type: "SharingGroup", id: groupId },
+        { type: "SharingGroups", id: "LIST" },
+      ],
+    }),
+
+    // ========== GROUP ENDPOINTS ==========
     // Get all user's sharing groups
     getUserSharingGroups: builder.query<ApiResponse<SharingGroup[]>, void>({
       query: () => "/sharing-groups",
@@ -119,7 +198,7 @@ export const sharingApi = createApi({
       invalidatesTags: [{ type: "SharingGroups", id: "LIST" }],
     }),
 
-    // Add member to group
+    // Add member to group (sends invitation)
     addMember: builder.mutation<
       ApiResponse<SharingGroup>,
       { id: string; data: { email: string; role: "member" | "admin" } }
@@ -204,4 +283,9 @@ export const {
   useRemoveMemberMutation,
   useAddSubscriptionToGroupMutation,
   useRemoveSubscriptionFromGroupMutation,
+  // New invitation hooks
+  useGetUserInvitationsQuery,
+  useAcceptInvitationMutation,
+  useDeclineInvitationMutation,
+  useCancelInvitationMutation,
 } = sharingApi;
