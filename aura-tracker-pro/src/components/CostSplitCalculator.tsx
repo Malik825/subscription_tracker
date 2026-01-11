@@ -20,10 +20,12 @@ interface Member {
   customAmount?: number;
 }
 
+type SplitType = "equal" | "custom" | "percentage";
+
 export function CostSplitCalculator() {
   const [isOpen, setIsOpen] = useState(false);
   const [totalAmount, setTotalAmount] = useState<string>("15.99");
-  const [splitType, setSplitType] = useState<"equal" | "custom" | "percentage">("equal");
+  const [splitType, setSplitType] = useState<SplitType>("equal");
   const [members, setMembers] = useState<Member[]>([
     { id: "1", name: "You" },
     { id: "2", name: "Person 2" },
@@ -97,7 +99,7 @@ export function CostSplitCalculator() {
           {/* Split Type */}
           <div className="space-y-2">
             <Label>Split Method</Label>
-            <RadioGroup value={splitType} onValueChange={(v: any) => setSplitType(v)}>
+            <RadioGroup value={splitType} onValueChange={(v) => setSplitType(v as SplitType)}>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="equal" id="equal" />
                 <Label htmlFor="equal" className="font-normal cursor-pointer">
@@ -124,7 +126,7 @@ export function CostSplitCalculator() {
             </div>
 
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {splits.map((member, index) => (
+              {splits.map((member) => (
                 <div key={member.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
                   <div className="flex-1">
                     <p className="font-medium text-sm">{member.name}</p>
