@@ -2,8 +2,7 @@ import aj from "../config/arcjet.js";
 
 export const arcjetMiddleware = async (req, res, next) => {
   try {
-    // Render passes the real client IP in the x-forwarded-for header.
-    // We try req.ip first, then the header, then a fallback.
+    // Render and Vercel pass the real visitor IP in x-forwarded-for
     const forwarded = req.headers["x-forwarded-for"];
     const ip =
       typeof forwarded === "string"
@@ -12,7 +11,7 @@ export const arcjetMiddleware = async (req, res, next) => {
 
     const decision = await aj.protect(req, {
       requested: 1,
-      ip: ip, // Pass the manually verified IP
+      ip: ip, // Explicitly pass the extracted IP
     });
 
     if (decision.isDenied()) {
@@ -34,7 +33,7 @@ export const arcjetMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     console.log(`Arcjet error: ${error.message}`);
-    next();
+    next(); // Fail-open to avoid blocking users on security tool errors
   }
 };
 

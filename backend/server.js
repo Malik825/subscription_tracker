@@ -25,7 +25,7 @@ import sharingGroupRoutes from "./routes/sharingGroup.route.js";
 const app = express();
 
 if (NODE_ENV === "production") {
-  app.set("trust proxy", 1);
+  app.set("trust proxy", 3);
 }
 
 const allowedOrigins = [
