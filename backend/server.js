@@ -5,10 +5,14 @@ import cookieParser from "cookie-parser";
 import { PORT, NODE_ENV, FRONTEND_URL } from "./config/env.js";
 import connectDB from "./database/mongodb.js";
 
-import unkeyMiddleware, {
-  authRateLimit,
-  aiRateLimit,
-} from "./middlewares/unkey.middleware.js";
+import {
+  defaultRateLimiter,
+  authRateLimiter,
+  authenticatedRateLimiter,
+  aiRateLimiter,
+  webhookRateLimiter,
+} from "./config/rateLimiter.js";
+
 import { errorHandler } from "./middlewares/error.middleware.js";
 
 import authRouter from "./routes/auth.routes.js";
@@ -27,17 +31,12 @@ import sharingGroupRoutes from "./routes/sharingGroup.route.js";
 
 const app = express();
 
-// CRITICAL: Set trust proxy BEFORE any middleware
 if (NODE_ENV === "production") {
-  app.set("trust proxy", 1); // Trust first proxy (Render/Vercel)
   console.log("✓ Trust proxy enabled for production");
 }
 
-// Fixed: Remove duplicate FRONTEND_URL
 const allowedOrigins = [
   FRONTEND_URL,
-  "https://subscription-tracker-lovat.vercel.app",
-  "http://localhost:5173",
 ].filter(Boolean);
 
 app.use(
@@ -66,43 +65,53 @@ app.use(
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-// Apply default Unkey rate limiting to all routes
-app.use(unkeyMiddleware);
+app.use(defaultRateLimiter);
 
 app.get("/", (req, res) => {
   res.send("Welcome to Subscription Tracker App");
 });
 
-// Apply stricter rate limiting to auth routes
-app.use("/api/v1/auth", authRateLimit, authRouter);
-app.use("/api/v1/users", userRouter);
-app.use("/api/v1/subscriptions", subscriptionRouter);
-app.use("/api/v1/workflow", workflowRouter);
-app.use("/api/v1/payments", paymentRouter);
+app.use("/api/v1/auth", authRateLimiter, authRouter);
 
-// Apply AI-specific rate limiting
-app.use("/api/v1/ai", aiRateLimit, aiRoutes);
+app.use("/api/v1/users", authenticatedRateLimiter, userRouter);
 
-app.use("/api/v1/notifications", notificationRouter);
-app.use("/api/v1/settings", settingsRouter);
-app.use("/api/v1/sharing-groups", sharingGroupRoutes);
-app.use("/api/v1/payment-tracking", paymentTrackingRoutes);
+app.use("/api/v1/subscriptions", authenticatedRateLimiter, subscriptionRouter);
+
+app.use("/api/v1/workflow", authenticatedRateLimiter, workflowRouter);
+
+app.use("/api/v1/payments", webhookRateLimiter, paymentRouter);
+
+app.use("/api/v1/ai", aiRateLimiter, aiRoutes);
+
+app.use("/api/v1/notifications", authenticatedRateLimiter, notificationRouter);
+
+app.use("/api/v1/settings", authenticatedRateLimiter, settingsRouter);
+
+app.use("/api/v1/sharing-groups", authenticatedRateLimiter, sharingGroupRoutes);
+
+app.use(
+  "/api/v1/payment-tracking",
+  authenticatedRateLimiter,
+  paymentTrackingRoutes
+);
 
 app.use(errorHandler);
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
-  console.log(`✓ Unkey rate limiting enabled`);
+  console.log(`✓ Express Rate Limit enabled for all routes`);
+  console.log(`  - Default: 100 req/min (IP-based)`);
+  console.log(`  - Auth: 15 req/15min (email-based)`);
+  console.log(`  - Authenticated: 300 req/min (user-based)`);
+  console.log(`  - AI: 20 req/min (user-based)`);
+  console.log(`  - Webhooks: 100 req/min (IP-based)`);
   await connectDB();
 
-  // Start notification scheduler after DB connection
   notificationScheduler.start();
 });
 
-// Keep your existing cron (you may want to migrate this logic to the new scheduler later)
 startReminderCron();
 
-// Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully...");
   notificationScheduler.stop();
