@@ -23,4 +23,6 @@ export const {
   RESEND_API_KEY,
   GROQ_API_KEY,
   QSTASH_WORKFLOW_URL,
+  UNKEY_ROOT_KEY,
+  UNKEY_NAMESPACE,
 } = process.env;
