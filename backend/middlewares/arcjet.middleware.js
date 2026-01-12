@@ -2,28 +2,49 @@ import aj from "../config/arcjet.js";
 
 export const arcjetMiddleware = async (req, res, next) => {
   try {
-    // Render and Vercel pass the real visitor IP in x-forwarded-for
+    // Extract IP with better fallback logic
+    let ip = "127.0.0.1"; // Default fallback
+    
+    // Check x-forwarded-for header (Render/Vercel use this)
     const forwarded = req.headers["x-forwarded-for"];
-    const ip =
-      typeof forwarded === "string"
-        ? forwarded.split(",")[0].trim()
-        : req.ip || req.socket.remoteAddress || "127.0.0.1";
+    if (forwarded) {
+      ip = typeof forwarded === "string" 
+        ? forwarded.split(",")[0].trim() 
+        : forwarded[0];
+    } 
+    // Check x-real-ip header (some proxies use this)
+    else if (req.headers["x-real-ip"]) {
+      ip = req.headers["x-real-ip"];
+    }
+    // Fall back to req.ip (Express provides this when trust proxy is set)
+    else if (req.ip) {
+      // Remove ::ffff: prefix from IPv6-mapped IPv4 addresses
+      ip = req.ip.replace(/^::ffff:/, "");
+    }
+    // Last resort: socket address
+    else if (req.socket?.remoteAddress) {
+      ip = req.socket.remoteAddress.replace(/^::ffff:/, "");
+    }
+
+    console.log(`[Arcjet] Processing request from IP: ${ip}`);
 
     const decision = await aj.protect(req, {
       requested: 1,
-      ip: ip, // Explicitly pass the extracted IP
+      ip: ip,
     });
 
     if (decision.isDenied()) {
-      if (decision.reason.isRateLimit())
+      if (decision.reason.isRateLimit()) {
         return res
           .status(429)
           .json({ success: false, message: "Too many requests" });
+      }
 
-      if (decision.reason.isBot())
+      if (decision.reason.isBot()) {
         return res
           .status(423)
           .json({ success: false, message: "Bot detected" });
+      }
 
       return res
         .status(403)
@@ -32,8 +53,9 @@ export const arcjetMiddleware = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.log(`Arcjet error: ${error.message}`);
-    next(); // Fail-open to avoid blocking users on security tool errors
+    console.error(`[Arcjet] Error: ${error.message}`);
+    // Fail-open to avoid blocking users on security tool errors
+    next();
   }
 };
 
