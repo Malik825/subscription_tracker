@@ -65,7 +65,7 @@ declare global {
 }
 
 export function useVoiceRecognition({
-  continuous = false,
+  continuous = true, // Changed default to true for better continuous listening
   interimResults = true,
   lang = "en-US",
   onResult,
@@ -79,6 +79,9 @@ export function useVoiceRecognition({
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isManualStopRef = useRef(false);
+  const finalTranscriptRef = useRef("");
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check browser support
   useEffect(() => {
@@ -102,10 +105,14 @@ export function useVoiceRecognition({
 
     return () => {
       if (recognitionRef.current && isListening) {
+        isManualStopRef.current = true;
         recognitionRef.current.stop();
       }
       if (restartTimeoutRef.current) {
         clearTimeout(restartTimeoutRef.current);
+      }
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
       }
     };
   }, [continuous, interimResults, lang, isListening]);
@@ -118,6 +125,11 @@ export function useVoiceRecognition({
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = "";
       let interimTranscript = "";
+
+      // Clear any existing silence timeout
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
@@ -135,15 +147,34 @@ export function useVoiceRecognition({
         setTranscript(interimTranscript || finalTranscript.trim());
       }
 
-      // Only call onResult for final results
-      if (finalTranscript && onResult) {
-        onResult(finalTranscript.trim());
-        setTranscript(""); // Clear interim transcript after final result
+      // Accumulate final results
+      if (finalTranscript) {
+        finalTranscriptRef.current += finalTranscript;
+
+        // Set a timeout to detect when user stops speaking
+        // This allows for natural pauses in speech
+        silenceTimeoutRef.current = setTimeout(() => {
+          if (finalTranscriptRef.current.trim() && onResult) {
+            onResult(finalTranscriptRef.current.trim());
+            finalTranscriptRef.current = "";
+            setTranscript(""); // Clear interim transcript after final result
+          }
+        }, 1500); // Wait 1.5 seconds of silence before finalizing
       }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error("Speech recognition error:", event.error);
+
+      // Ignore 'no-speech' errors during continuous listening
+      if (event.error === "no-speech" && continuous) {
+        return;
+      }
+
+      // Ignore 'aborted' errors when manually stopping
+      if (event.error === "aborted" && isManualStopRef.current) {
+        return;
+      }
 
       let errorMessage = "Voice recognition error";
 
@@ -162,7 +193,6 @@ export function useVoiceRecognition({
           errorMessage = "Network error. Please check your connection.";
           break;
         case "aborted":
-          errorMessage = "Voice recognition was stopped.";
           return; // Don't show error for manual stops
         default:
           errorMessage = `Voice error: ${event.error}`;
@@ -171,6 +201,7 @@ export function useVoiceRecognition({
       setError(errorMessage);
       setIsListening(false);
       setTranscript("");
+      finalTranscriptRef.current = "";
 
       if (onError) {
         onError(errorMessage);
@@ -178,20 +209,53 @@ export function useVoiceRecognition({
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      // Clear any pending timeouts
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
+
+      // If there's accumulated text, send it
+      if (
+        finalTranscriptRef.current.trim() &&
+        onResult &&
+        !isManualStopRef.current
+      ) {
+        onResult(finalTranscriptRef.current.trim());
+      }
+
+      finalTranscriptRef.current = "";
       setTranscript("");
 
-      if (onEnd) {
-        onEnd();
+      // Auto-restart if continuous mode and not manually stopped
+      if (continuous && isListening && !isManualStopRef.current) {
+        restartTimeoutRef.current = setTimeout(() => {
+          try {
+            if (recognitionRef.current && isListening) {
+              recognitionRef.current.start();
+            }
+          } catch (err) {
+            console.error("Error restarting recognition:", err);
+          }
+        }, 100);
+      } else {
+        setIsListening(false);
+        if (onEnd) {
+          onEnd();
+        }
       }
+
+      // Reset manual stop flag
+      isManualStopRef.current = false;
     };
 
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
       setTranscript("");
+      finalTranscriptRef.current = "";
+      isManualStopRef.current = false;
     };
-  }, [continuous, interimResults, onResult, onError, onEnd]);
+  }, [continuous, interimResults, onResult, onError, onEnd, isListening]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported) {
@@ -206,6 +270,8 @@ export function useVoiceRecognition({
     try {
       setError(null);
       setTranscript("");
+      finalTranscriptRef.current = "";
+      isManualStopRef.current = false;
       recognitionRef.current.start();
     } catch (err) {
       const errorMsg =
@@ -221,15 +287,32 @@ export function useVoiceRecognition({
     if (!recognitionRef.current || !isListening) return;
 
     try {
+      isManualStopRef.current = true;
+
+      // Clear any pending timeouts
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
+      if (restartTimeoutRef.current) {
+        clearTimeout(restartTimeoutRef.current);
+      }
+
+      // Send any accumulated text before stopping
+      if (finalTranscriptRef.current.trim() && onResult) {
+        onResult(finalTranscriptRef.current.trim());
+      }
+
       recognitionRef.current.stop();
+      finalTranscriptRef.current = "";
       setTranscript("");
     } catch (err) {
       console.error("Error stopping recognition:", err);
     }
-  }, [isListening]);
+  }, [isListening, onResult]);
 
   const resetTranscript = useCallback(() => {
     setTranscript("");
+    finalTranscriptRef.current = "";
   }, []);
 
   return {

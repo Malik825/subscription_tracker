@@ -1,16 +1,17 @@
-// components/ai/AiChat.tsx - Voice-Enabled Version
+// components/ai/AiChat.tsx - Voice-Enabled Version with Feedback
 
 import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Loader2, User, Bot, Check, X, Mic, MicOff, Sparkles } from "lucide-react";
+import { Send, Loader2, User, Bot, Check, X, Mic, MicOff, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
 import { useNavigate } from "react-router-dom";
 import { SubscriptionFormDialog } from "./SubscriptionFormDialog";
 import { useVoiceRecognition } from "@/hooks/use-voice-recognition";
+import { useVoiceFeedback, setVoiceEnabled } from "@/hooks/use-voice-feedback";
 
 interface ActionParameters {
   prefillData?: Record<string, unknown>;
@@ -77,6 +78,8 @@ export function AiChat() {
   } = useVoiceRecognition({
     onResult: (text) => {
       setInput(text);
+      // Play sound when speech is captured
+      playBeep();
     },
     onError: (error) => {
       toast({
@@ -87,6 +90,10 @@ export function AiChat() {
     },
   });
 
+  // Voice Feedback Hook
+  const { announce, playBeep, voiceEnabled, soundEnabled } = useVoiceFeedback();
+  const [localVoiceEnabled, setLocalVoiceEnabled] = useState(voiceEnabled);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -94,6 +101,12 @@ export function AiChat() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Announce welcome message on mount
+  useEffect(() => {
+    const welcomeMessage = messages[0].content;
+    announce(welcomeMessage);
+  }, []); // Only run once on mount
 
   // Show voice error if any
   useEffect(() => {
@@ -130,12 +143,13 @@ export function AiChat() {
       });
 
       const aiResponse = response.data.data;
+      const assistantMessage = aiResponse.message;
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: aiResponse.message,
+          content: assistantMessage,
           action: aiResponse.responseType === "action" ? {
             type: aiResponse.action || "",
             parameters: aiResponse.parameters || {},
@@ -143,6 +157,9 @@ export function AiChat() {
           } : undefined,
         },
       ]);
+
+      // Announce AI response with voice feedback
+      announce(assistantMessage);
 
       // Handle form-related actions immediately
       if (aiResponse.responseType === "action") {
@@ -161,6 +178,8 @@ export function AiChat() {
         return;
       }
 
+      const errorMessage = "Sorry, I encountered an error. Please try again.";
+      
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to process message",
@@ -171,9 +190,12 @@ export function AiChat() {
         ...prev,
         {
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
+          content: errorMessage,
         },
       ]);
+
+      // Announce error with voice
+      announce(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -204,6 +226,8 @@ export function AiChat() {
         parameters: action.parameters,
       });
 
+      const successMessage = "Action completed successfully!";
+
       toast({
         title: "Success",
         description: response.data.message,
@@ -213,9 +237,12 @@ export function AiChat() {
         ...prev,
         {
           role: "assistant",
-          content: "✅ Action completed successfully!",
+          content: `✅ ${successMessage}`,
         },
       ]);
+
+      // Announce success
+      announce(successMessage);
 
       if (action.type === "delete_subscription") {
         window.location.reload();
@@ -233,11 +260,16 @@ export function AiChat() {
         return;
       }
 
+      const errorMessage = "Failed to execute action";
+      
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to execute action",
+        description: error.response?.data?.message || errorMessage,
         variant: "destructive",
       });
+
+      // Announce error
+      announce(errorMessage);
     }
   };
 
@@ -255,6 +287,9 @@ export function AiChat() {
       title: "Success",
       description: message,
     });
+
+    // Announce success
+    announce(message);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -269,12 +304,59 @@ export function AiChat() {
       stopListening();
     } else {
       startListening();
+      // Announce listening started
+      playBeep();
+    }
+  };
+
+  const toggleVoiceFeedback = () => {
+    const newState = !localVoiceEnabled;
+    setLocalVoiceEnabled(newState);
+    setVoiceEnabled(newState);
+    
+    // Provide feedback about the toggle
+    if (newState) {
+      announce("Voice feedback enabled");
+    } else {
+      toast({
+        title: "Voice Feedback Disabled",
+        description: "You won't hear AI responses",
+      });
     }
   };
 
   return (
     <>
       <Card className="flex flex-col h-[600px] glass">
+        {/* Voice Controls Header */}
+        <div className="p-3 bg-muted/50 border-b border-border/50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">AI Assistant</span>
+          </div>
+          
+          {/* Voice Feedback Toggle */}
+          <Button
+            onClick={toggleVoiceFeedback}
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-2 transition-smooth"
+            title={localVoiceEnabled ? "Disable voice feedback" : "Enable voice feedback"}
+          >
+            {localVoiceEnabled ? (
+              <>
+                <Volume2 className="h-4 w-4 text-primary" />
+                <span className="text-xs">Voice: On</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs">Voice: Off</span>
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Voice Not Supported Warning */}
         {!isSupported && (
           <div className="p-3 bg-warning/10 border-b border-warning/20">
@@ -326,13 +408,15 @@ export function AiChat() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
+                        const cancelMessage = "Action cancelled. How else can I help?";
                         setMessages((prev) => [
                           ...prev,
                           {
                             role: "assistant",
-                            content: "Action cancelled. How else can I help?",
+                            content: cancelMessage,
                           },
                         ]);
+                        announce(cancelMessage);
                       }}
                       className="transition-smooth"
                     >
