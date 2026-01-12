@@ -1,5 +1,8 @@
-
-export const requirePro = (req, res, next) => {
+/**
+ * Middleware to enforce Pro plan access
+ * Returns 403 error for Free users attempting to access Pro features
+ */
+const requirePro = (req, res, next) => {
     // Check if user is authenticated
     if (!req.user) {
         return res.status(401).json({
