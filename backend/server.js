@@ -17,21 +17,24 @@ import aiRoutes from "./routes/ai.route.js";
 import notificationRouter from "./routes/notifications.route.js";
 
 import { startReminderCron } from "./utils/check-reminders.cron.js";
-import notificationScheduler from "./utils/notificationScheduler.js"; // ← NEW: Import notification scheduler
+import notificationScheduler from "./utils/notificationScheduler.js";
 import settingsRouter from "./routes/settings.route.js";
 import paymentTrackingRoutes from "./routes/paymentTracking.routes.js";
 import sharingGroupRoutes from "./routes/sharingGroup.route.js";
 
 const app = express();
 
+// CRITICAL: Set trust proxy BEFORE any middleware
 if (NODE_ENV === "production") {
-  app.set("trust proxy", 1);
+  app.set("trust proxy", 1); // Trust first proxy (Render/Vercel)
+  console.log("✓ Trust proxy enabled for production");
 }
 
+// Fixed: Remove duplicate FRONTEND_URL
 const allowedOrigins = [
+  FRONTEND_URL,
   "https://subscription-tracker-lovat.vercel.app",
   "http://localhost:5173",
-  FRONTEND_URL,
 ].filter(Boolean);
 
 app.use(
@@ -82,14 +85,14 @@ app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
   await connectDB();
 
-  // ← NEW: Start notification scheduler after DB connection
+  // Start notification scheduler after DB connection
   notificationScheduler.start();
 });
 
 // Keep your existing cron (you may want to migrate this logic to the new scheduler later)
 startReminderCron();
 
-// ← NEW: Graceful shutdown
+// Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully...");
   notificationScheduler.stop();
