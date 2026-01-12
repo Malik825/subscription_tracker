@@ -2,11 +2,28 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, dev] # Only run on pushes to main and dev
+    branches: [main, dev]
   pull_request:
-    branches: [main, dev] # Run on PRs targeting main or dev
+    branches: [main, dev]
 
 jobs:
+  # Block direct pushes to main that aren't from dev
+  branch-check:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Check if push is from dev branch
+        run: |
+          echo "Checking push to main branch..."
+
+          # Get the previous commit to see if it came from dev
+          # This is a basic check - branch protection rules are more robust
+          if [[ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+            echo "⚠️  Direct pushes to main are not allowed!"
+            echo "Please create a pull request from dev branch instead."
+            exit 1
+          fi
+
   security-and-lint:
     runs-on: ubuntu-latest
     steps:
@@ -57,7 +74,7 @@ jobs:
         run: npm run build
 
   deploy:
-    needs: build-and-test
+    needs: [branch-check, build-and-test]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
