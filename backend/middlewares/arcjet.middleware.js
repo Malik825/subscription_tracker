@@ -4,15 +4,14 @@ export const arcjetMiddleware = async (req, res, next) => {
   try {
     // Extract IP with better fallback logic
     let ip = "127.0.0.1"; // Default fallback
-
+    
     // Check x-forwarded-for header (Render/Vercel use this)
     const forwarded = req.headers["x-forwarded-for"];
     if (forwarded) {
-      ip =
-        typeof forwarded === "string"
-          ? forwarded.split(",")[0].trim()
-          : forwarded[0];
-    }
+      ip = typeof forwarded === "string" 
+        ? forwarded.split(",")[0].trim() 
+        : forwarded[0];
+    } 
     // Check x-real-ip header (some proxies use this)
     else if (req.headers["x-real-ip"]) {
       ip = req.headers["x-real-ip"];
