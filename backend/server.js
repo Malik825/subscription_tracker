@@ -5,7 +5,10 @@ import cookieParser from "cookie-parser";
 import { PORT, NODE_ENV, FRONTEND_URL } from "./config/env.js";
 import connectDB from "./database/mongodb.js";
 
-import arcjetMiddleware from "./middlewares/arcjet.middleware.js";
+import unkeyMiddleware, {
+  authRateLimit,
+  aiRateLimit,
+} from "./middlewares/unkey.middleware.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 
 import authRouter from "./routes/auth.routes.js";
@@ -62,18 +65,24 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(arcjetMiddleware);
+
+// Apply default Unkey rate limiting to all routes
+app.use(unkeyMiddleware);
 
 app.get("/", (req, res) => {
   res.send("Welcome to Subscription Tracker App");
 });
 
-app.use("/api/v1/auth", authRouter);
+// Apply stricter rate limiting to auth routes
+app.use("/api/v1/auth", authRateLimit, authRouter);
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/subscriptions", subscriptionRouter);
 app.use("/api/v1/workflow", workflowRouter);
 app.use("/api/v1/payments", paymentRouter);
-app.use("/api/v1/ai", aiRoutes);
+
+// Apply AI-specific rate limiting
+app.use("/api/v1/ai", aiRateLimit, aiRoutes);
+
 app.use("/api/v1/notifications", notificationRouter);
 app.use("/api/v1/settings", settingsRouter);
 app.use("/api/v1/sharing-groups", sharingGroupRoutes);
@@ -83,6 +92,7 @@ app.use(errorHandler);
 
 app.listen(PORT, async () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`✓ Unkey rate limiting enabled`);
   await connectDB();
 
   // Start notification scheduler after DB connection

@@ -46,9 +46,18 @@ export const registerUser = async (req, res, next) => {
     await session.commitTransaction();
     session.endSession();
 
-    sendVerificationEmail(email, verificationToken).catch((err) => {
-      console.error("Verification email failed:", err.message);
-    });
+    // Send verification email with better error handling
+    try {
+      console.log(`📧 Sending verification email to: ${email}`);
+      await sendVerificationEmail(email, verificationToken);
+      console.log(`✅ Verification email sent successfully to: ${email}`);
+    } catch (emailError) {
+      console.error("❌ Verification email failed:", emailError.message);
+      console.error(
+        "   User can request a new verification email from the login page"
+      );
+      // Don't fail registration if email fails, but log it
+    }
 
     res.status(201).json({
       success: true,
@@ -81,8 +90,11 @@ export const loginUser = async (req, res, next) => {
       throw error;
     }
 
-    if (NODE_ENV === "production" && !user.isVerified) {
-      const error = new Error("Please verify your email to login");
+    // Enforce email verification in all environments
+    if (!user.isVerified) {
+      const error = new Error(
+        "Please verify your email before logging in. Check your inbox (including spam folder) for the verification link."
+      );
       error.statusCode = 403;
       throw error;
     }

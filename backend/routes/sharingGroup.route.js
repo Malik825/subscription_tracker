@@ -17,11 +17,15 @@ import {
   acceptInvitation,
 } from "../controllers/sharingGroup.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
+import requirePro from "../middlewares/requirePro.middleware.js";
 
 const sharingGroupRoutes = express.Router();
 
 // Apply auth middleware to all routes
 sharingGroupRoutes.use(authMiddleware);
+
+// Apply Pro middleware to all sharing routes (Family Sharing is Pro-only)
+sharingGroupRoutes.use(requirePro);
 
 // ========== INVITATION ROUTES (Must come BEFORE :id routes) ==========
 // Get user's pending invitations
