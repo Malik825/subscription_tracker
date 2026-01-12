@@ -1,15 +1,17 @@
-// components/ai/AiChat.tsx - Enhanced Version with Form Integration
+// components/ai/AiChat.tsx - Voice-Enabled Version with Feedback
 
 import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, Loader2, User, Bot, Check, X } from "lucide-react";
+import { Send, Loader2, User, Bot, Check, X, Mic, MicOff, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import api from "@/lib/axios";
 import { useNavigate } from "react-router-dom";
 import { SubscriptionFormDialog } from "./SubscriptionFormDialog";
+import { useVoiceRecognition } from "@/hooks/use-voice-recognition";
+import { useVoiceFeedback, setVoiceEnabled } from "@/hooks/use-voice-feedback";
 
 interface ActionParameters {
   prefillData?: Record<string, unknown>;
@@ -51,7 +53,7 @@ export function AiChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi! I'm your AI subscription assistant. I can help you add, manage, or analyze your subscriptions. What would you like to do?",
+      content: "Hi! I'm your AI subscription assistant. I can help you add, manage, or analyze your subscriptions. You can type or use voice commands. What would you like to do?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -65,6 +67,33 @@ export function AiChat() {
   const [formMode, setFormMode] = useState<"create" | "update">("create");
   const [formData, setFormData] = useState<Record<string, unknown>>({});
 
+  // Voice Recognition Hook
+  const {
+    isListening,
+    isSupported,
+    transcript,
+    startListening,
+    stopListening,
+    error: voiceError,
+  } = useVoiceRecognition({
+    onResult: (text) => {
+      setInput(text);
+      // Play sound when speech is captured
+      playBeep();
+    },
+    onError: (error) => {
+      toast({
+        title: "Voice Error",
+        description: error,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Voice Feedback Hook
+  const { announce, playBeep, voiceEnabled, soundEnabled } = useVoiceFeedback();
+  const [localVoiceEnabled, setLocalVoiceEnabled] = useState(voiceEnabled);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -73,11 +102,33 @@ export function AiChat() {
     scrollToBottom();
   }, [messages]);
 
+  // Announce welcome message on mount
+  useEffect(() => {
+    const welcomeMessage = messages[0].content;
+    announce(welcomeMessage);
+  }, []); // Only run once on mount
+
+  // Show voice error if any
+  useEffect(() => {
+    if (voiceError) {
+      toast({
+        title: "Voice Recognition Error",
+        description: voiceError,
+        variant: "destructive",
+      });
+    }
+  }, [voiceError, toast]);
+
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
     setInput("");
+    
+    // Stop listening if active
+    if (isListening) {
+      stopListening();
+    }
     
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setIsLoading(true);
@@ -92,12 +143,13 @@ export function AiChat() {
       });
 
       const aiResponse = response.data.data;
+      const assistantMessage = aiResponse.message;
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: aiResponse.message,
+          content: assistantMessage,
           action: aiResponse.responseType === "action" ? {
             type: aiResponse.action || "",
             parameters: aiResponse.parameters || {},
@@ -105,6 +157,9 @@ export function AiChat() {
           } : undefined,
         },
       ]);
+
+      // Announce AI response with voice feedback
+      announce(assistantMessage);
 
       // Handle form-related actions immediately
       if (aiResponse.responseType === "action") {
@@ -123,6 +178,8 @@ export function AiChat() {
         return;
       }
 
+      const errorMessage = "Sorry, I encountered an error. Please try again.";
+      
       toast({
         title: "Error",
         description: error.response?.data?.message || "Failed to process message",
@@ -133,9 +190,12 @@ export function AiChat() {
         ...prev,
         {
           role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
+          content: errorMessage,
         },
       ]);
+
+      // Announce error with voice
+      announce(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -146,20 +206,16 @@ export function AiChat() {
 
     switch (action) {
       case "show_subscription_form":
-        // Show create form with optional prefill
         setFormMode("create");
         setFormData(parameters?.prefillData || {});
         setShowForm(true);
         break;
 
       case "show_update_form":
-        // Show update form with existing subscription data
         setFormMode("update");
         setFormData(parameters?.subscription || {});
         setShowForm(true);
         break;
-
-      // Other actions are handled via confirmation buttons
     }
   };
 
@@ -170,6 +226,8 @@ export function AiChat() {
         parameters: action.parameters,
       });
 
+      const successMessage = "Action completed successfully!";
+
       toast({
         title: "Success",
         description: response.data.message,
@@ -179,13 +237,15 @@ export function AiChat() {
         ...prev,
         {
           role: "assistant",
-          content: "✅ Action completed successfully!",
+          content: `✅ ${successMessage}`,
         },
       ]);
 
-      // Refresh subscriptions if needed
+      // Announce success
+      announce(successMessage);
+
       if (action.type === "delete_subscription") {
-        window.location.reload(); // Or use your state management
+        window.location.reload();
       }
     } catch (err) {
       const error = err as ErrorResponse;
@@ -200,11 +260,16 @@ export function AiChat() {
         return;
       }
 
+      const errorMessage = "Failed to execute action";
+      
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to execute action",
+        description: error.response?.data?.message || errorMessage,
         variant: "destructive",
       });
+
+      // Announce error
+      announce(errorMessage);
     }
   };
 
@@ -222,6 +287,9 @@ export function AiChat() {
       title: "Success",
       description: message,
     });
+
+    // Announce success
+    announce(message);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -231,9 +299,74 @@ export function AiChat() {
     }
   };
 
+  const toggleVoice = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+      // Announce listening started
+      playBeep();
+    }
+  };
+
+  const toggleVoiceFeedback = () => {
+    const newState = !localVoiceEnabled;
+    setLocalVoiceEnabled(newState);
+    setVoiceEnabled(newState);
+    
+    // Provide feedback about the toggle
+    if (newState) {
+      announce("Voice feedback enabled");
+    } else {
+      toast({
+        title: "Voice Feedback Disabled",
+        description: "You won't hear AI responses",
+      });
+    }
+  };
+
   return (
     <>
-      <Card className="flex flex-col h-[600px]">
+      <Card className="flex flex-col h-[600px] glass">
+        {/* Voice Controls Header */}
+        <div className="p-3 bg-muted/50 border-b border-border/50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">AI Assistant</span>
+          </div>
+          
+          {/* Voice Feedback Toggle */}
+          <Button
+            onClick={toggleVoiceFeedback}
+            size="sm"
+            variant="ghost"
+            className="h-8 gap-2 transition-smooth"
+            title={localVoiceEnabled ? "Disable voice feedback" : "Enable voice feedback"}
+          >
+            {localVoiceEnabled ? (
+              <>
+                <Volume2 className="h-4 w-4 text-primary" />
+                <span className="text-xs">Voice: On</span>
+              </>
+            ) : (
+              <>
+                <VolumeX className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs">Voice: Off</span>
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Voice Not Supported Warning */}
+        {!isSupported && (
+          <div className="p-3 bg-warning/10 border-b border-warning/20">
+            <p className="text-xs text-warning flex items-center gap-2">
+              <MicOff className="h-3 w-3" />
+              Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.
+            </p>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message, index) => (
             <div
@@ -244,7 +377,7 @@ export function AiChat() {
               )}
             >
               {message.role === "assistant" && (
-                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 glow-accent">
                   <Bot className="h-4 w-4 text-white" />
                 </div>
               )}
@@ -252,9 +385,9 @@ export function AiChat() {
               <div className="flex flex-col gap-2 max-w-[80%]">
                 <div
                   className={cn(
-                    "rounded-2xl px-4 py-3",
+                    "rounded-2xl px-4 py-3 transition-smooth",
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-primary text-primary-foreground glow-primary"
                       : "bg-muted"
                   )}
                 >
@@ -266,7 +399,7 @@ export function AiChat() {
                     <Button
                       size="sm"
                       onClick={() => handleExecuteAction(message.action!)}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 transition-smooth hover:glow-primary"
                     >
                       <Check className="h-4 w-4" />
                       Confirm
@@ -275,14 +408,17 @@ export function AiChat() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
+                        const cancelMessage = "Action cancelled. How else can I help?";
                         setMessages((prev) => [
                           ...prev,
                           {
                             role: "assistant",
-                            content: "Action cancelled. How else can I help?",
+                            content: cancelMessage,
                           },
                         ]);
+                        announce(cancelMessage);
                       }}
+                      className="transition-smooth"
                     >
                       <X className="h-4 w-4" />
                       Cancel
@@ -292,7 +428,7 @@ export function AiChat() {
               </div>
 
               {message.role === "user" && (
-                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 glow-primary">
                   <User className="h-4 w-4 text-primary-foreground" />
                 </div>
               )}
@@ -301,11 +437,11 @@ export function AiChat() {
 
           {isLoading && (
             <div className="flex gap-3 justify-start">
-              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center glow-accent">
                 <Bot className="h-4 w-4 text-white" />
               </div>
               <div className="bg-muted rounded-2xl px-4 py-3">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
               </div>
             </div>
           )}
@@ -313,20 +449,58 @@ export function AiChat() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="p-4 border-t">
+        {/* Input Area with Voice */}
+        <div className="p-4 border-t border-border/50 bg-card/50 backdrop-blur-sm">
+          {/* Real-time transcript display */}
+          {isListening && transcript && (
+            <div className="mb-2 p-2 rounded-lg bg-primary/10 border border-primary/20 animate-pulse">
+              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                <Sparkles className="h-3 w-3 text-primary animate-spin" />
+                Listening: <span className="text-foreground">{transcript}</span>
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask me anything about your subscriptions..."
-              disabled={isLoading}
-              className="flex-1"
+              placeholder={isListening ? "Listening..." : "Ask me anything or use voice..."}
+              disabled={isLoading || isListening}
+              className={cn(
+                "flex-1 transition-smooth",
+                isListening && "border-primary glow-border"
+              )}
             />
+            
+            {/* Voice Button */}
+            {isSupported && (
+              <Button
+                onClick={toggleVoice}
+                disabled={isLoading}
+                size="icon"
+                variant={isListening ? "default" : "outline"}
+                className={cn(
+                  "transition-smooth",
+                  isListening && "glow-primary animate-pulse"
+                )}
+                title={isListening ? "Stop listening" : "Start voice input"}
+              >
+                {isListening ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+
+            {/* Send Button */}
             <Button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               size="icon"
+              className="transition-smooth hover:glow-primary"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -335,6 +509,18 @@ export function AiChat() {
               )}
             </Button>
           </div>
+
+          {/* Voice Status Indicator */}
+          {isListening && (
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <div className="flex gap-1">
+                <div className="h-2 w-1 bg-primary rounded-full animate-pulse animation-delay-100"></div>
+                <div className="h-3 w-1 bg-primary rounded-full animate-pulse animation-delay-200"></div>
+                <div className="h-2 w-1 bg-primary rounded-full animate-pulse animation-delay-300"></div>
+              </div>
+              <span className="text-xs text-muted-foreground">Voice active</span>
+            </div>
+          )}
         </div>
       </Card>
 

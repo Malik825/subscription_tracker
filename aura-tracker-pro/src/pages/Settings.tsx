@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +54,7 @@ import {
   isHapticSupported
 } from "@/lib/hapticUtils";
 import { setMobileVoiceSettings, useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
+import { setVoiceEnabled as setVoiceFeedbackEnabled } from "@/hooks/use-voice-feedback";
 
 export default function Settings() {
     const { user } = useAuth();
@@ -125,11 +125,13 @@ export default function Settings() {
         if (window.speechSynthesis.onvoiceschanged !== undefined) {
             window.speechSynthesis.onvoiceschanged = loadVoices;
         }
-    }, []);
+    }, [selectedVoiceName]);
 
     // Save settings to localStorage whenever they change
     useEffect(() => {
         localStorage.setItem('voiceEnabled', JSON.stringify(voiceEnabled));
+        // Also update the voice feedback hook setting
+        setVoiceFeedbackEnabled(voiceEnabled);
     }, [voiceEnabled]);
 
     useEffect(() => {
@@ -156,9 +158,16 @@ export default function Settings() {
 
     const handleVoiceToggle = (checked: boolean) => {
         setVoiceEnabled(checked);
+        setVoiceFeedbackEnabled(checked);
+        
         if (checked) {
             announce("Voice feedback enabled");
         }
+        
+        if (isMobile && hapticEnabled) {
+            vibrate('toggleOn');
+        }
+        
         toast({
             title: checked ? "Voice Feedback Enabled" : "Voice Feedback Disabled",
             description: checked ? "You will now hear audio announcements" : "Audio announcements are now off"
@@ -217,6 +226,7 @@ export default function Settings() {
 
     const handleVoiceChange = (voiceName: string) => {
         setSelectedVoiceName(voiceName);
+        if (isMobile) vibrate('select');
         toast({
             title: "Voice Changed",
             description: "Click the play button to preview the new voice"
@@ -224,12 +234,28 @@ export default function Settings() {
     };
 
     const handleTestVoice = () => {
+        if (isMobile) vibrate('tap');
         if (selectedVoiceName) {
             testVoice(
                 selectedVoiceName,
                 "Hello! This is how I sound. I will announce your subscription updates and actions."
             );
         }
+    };
+
+    const handleRateChange = (value: number[]) => {
+        setVoiceRate(value[0]);
+        if (isMobile) vibrate('light');
+    };
+
+    const handlePitchChange = (value: number[]) => {
+        setVoicePitch(value[0]);
+        if (isMobile) vibrate('light');
+    };
+
+    const handleVolumeChange = (value: number[]) => {
+        setVoiceVolume(value[0]);
+        if (isMobile) vibrate('light');
     };
 
     const getVoiceDisplayName = (voice: SpeechSynthesisVoice) => {
@@ -267,6 +293,7 @@ export default function Settings() {
                                 <TabsTrigger
                                     value="profile"
                                     className="w-full justify-start gap-3 px-4 py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-all"
+                                    onClick={() => isMobile && vibrate('tap')}
                                 >
                                     <User className="h-4 w-4" />
                                     Profile
@@ -274,6 +301,7 @@ export default function Settings() {
                                 <TabsTrigger
                                     value="account"
                                     className="w-full justify-start gap-3 px-4 py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-all"
+                                    onClick={() => isMobile && vibrate('tap')}
                                 >
                                     <SettingsIcon className="h-4 w-4" />
                                     Account
@@ -281,6 +309,7 @@ export default function Settings() {
                                 <TabsTrigger
                                     value="notifications"
                                     className="w-full justify-start gap-3 px-4 py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-all"
+                                    onClick={() => isMobile && vibrate('tap')}
                                 >
                                     <Bell className="h-4 w-4" />
                                     Notifications
@@ -288,6 +317,7 @@ export default function Settings() {
                                 <TabsTrigger
                                     value="billing"
                                     className="w-full justify-start gap-3 px-4 py-3 data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-all"
+                                    onClick={() => isMobile && vibrate('tap')}
                                 >
                                     <CreditCard className="h-4 w-4" />
                                     Billing
@@ -317,7 +347,9 @@ export default function Settings() {
                                                 <AvatarFallback>{user?.username?.charAt(0)}</AvatarFallback>
                                             </Avatar>
                                             <div className="space-y-2">
-                                                <Button variant="outline" size="sm">Change Avatar</Button>
+                                                <Button variant="outline" size="sm" onClick={() => isMobile && vibrate('tap')}>
+                                                    Change Avatar
+                                                </Button>
                                                 <p className="text-xs text-muted-foreground">JPG, GIF or PNG. 1MB max.</p>
                                             </div>
                                         </div>
@@ -360,7 +392,9 @@ export default function Settings() {
                                             </div>
                                             <p className="text-sm text-muted-foreground">Select your preferred display currency</p>
                                         </div>
-                                        <Button variant="outline" size="sm">USD ($)</Button>
+                                        <Button variant="outline" size="sm" onClick={() => isMobile && vibrate('tap')}>
+                                            USD ($)
+                                        </Button>
                                     </div>
                                 </div>
 
@@ -372,7 +406,9 @@ export default function Settings() {
                                                 <Label className="text-red-400">Delete Account</Label>
                                                 <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
                                             </div>
-                                            <Button variant="destructive" size="sm">Delete Account</Button>
+                                            <Button variant="destructive" size="sm" onClick={() => isMobile && vibrate('heavy')}>
+                                                Delete Account
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
@@ -467,7 +503,7 @@ export default function Settings() {
                                                     </div>
                                                     <Slider
                                                         value={[voiceRate]}
-                                                        onValueChange={(value) => setVoiceRate(value[0])}
+                                                        onValueChange={handleRateChange}
                                                         min={0.5}
                                                         max={2.0}
                                                         step={0.1}
@@ -491,7 +527,7 @@ export default function Settings() {
                                                     </div>
                                                     <Slider
                                                         value={[voicePitch]}
-                                                        onValueChange={(value) => setVoicePitch(value[0])}
+                                                        onValueChange={handlePitchChange}
                                                         min={0.5}
                                                         max={2.0}
                                                         step={0.1}
@@ -515,7 +551,7 @@ export default function Settings() {
                                                     </div>
                                                     <Slider
                                                         value={[voiceVolume]}
-                                                        onValueChange={(value) => setVoiceVolume(value[0])}
+                                                        onValueChange={handleVolumeChange}
                                                         min={0.1}
                                                         max={1.0}
                                                         step={0.1}
@@ -638,7 +674,13 @@ export default function Settings() {
                                         </div>
                                         <Badge className="bg-primary text-primary-foreground">Active</Badge>
                                     </div>
-                                    <Button variant="outline" className="w-full">Manage Subscription</Button>
+                                    <Button 
+                                        variant="outline" 
+                                        className="w-full"
+                                        onClick={() => isMobile && vibrate('tap')}
+                                    >
+                                        Manage Subscription
+                                    </Button>
                                 </div>
                             </TabsContent>
                         </div>
