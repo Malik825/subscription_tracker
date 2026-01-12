@@ -3,7 +3,7 @@ import { ARCJET_KEY } from "./env.js";
 
 const aj = arcjet({
   key: ARCJET_KEY,
-  // This tells Arcjet to use the IP address for fingerprinting
+  // CRITICAL: Tells Arcjet to use the IP address for client fingerprinting
   characteristics: ["ip"],
   rules: [
     shield({ mode: "LIVE" }),
