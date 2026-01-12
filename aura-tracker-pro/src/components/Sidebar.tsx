@@ -11,10 +11,12 @@ import {
   LogOut,
   Zap,
   Sparkles,
-  Users, // ADD THIS
+  Users,
+  Crown,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
@@ -22,19 +24,20 @@ const navItems = [
   { icon: CreditCard, label: "Subscriptions", path: "/subscriptions" },
   { icon: PieChart, label: "Analytics", path: "/analytics" },
   { icon: Calendar, label: "Calendar", path: "/calendar" },
-  { icon: Users, label: "Family Sharing", path: "/family-sharing" }, // ADD THIS
+  { icon: Users, label: "Family Sharing", path: "/family-sharing", isPro: true },
   { icon: Bell, label: "Notifications", path: "/notifications" },
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
 // AI Features navigation
 const aiItems = [
-  { 
-    icon: Sparkles, 
-    label: "AI Assistant", 
+  {
+    icon: Sparkles,
+    label: "AI Assistant",
     path: "/ai-assistant",
     badge: "New",
-    isNew: true 
+    isNew: true,
+    isPro: true
   },
 ];
 
@@ -89,7 +92,7 @@ export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
             </p>
           </div>
         )}
-        
+
         {aiItems.map((item, index) => {
           const isActive = location.pathname === item.path;
           return (
@@ -117,6 +120,12 @@ export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
                     <span className="rounded-full bg-violet-500 px-2 py-0.5 text-[10px] font-semibold text-white animate-pulse">
                       {item.badge}
                     </span>
+                  )}
+                  {item.isPro && user?.plan === "free" && (
+                    <Badge variant="secondary" className="bg-gradient-to-r from-violet-500 to-purple-600 text-white border-0 text-[10px] px-1.5 py-0">
+                      <Crown className="h-2.5 w-2.5 mr-0.5" />
+                      Pro
+                    </Badge>
                   )}
                 </>
               )}
@@ -159,7 +168,15 @@ export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
             >
               <item.icon className="h-5 w-5 shrink-0" />
               {!collapsed && (
-                <span className="truncate animate-fade-in">{item.label}</span>
+                <>
+                  <span className="truncate animate-fade-in flex-1">{item.label}</span>
+                  {item.isPro && user?.plan === "free" && (
+                    <Badge variant="secondary" className="bg-gradient-to-r from-violet-500 to-purple-600 text-white border-0 text-[10px] px-1.5 py-0">
+                      <Crown className="h-2.5 w-2.5 mr-0.5" />
+                      Pro
+                    </Badge>
+                  )}
+                </>
               )}
             </NavLink>
           );
