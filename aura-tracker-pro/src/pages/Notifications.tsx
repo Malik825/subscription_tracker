@@ -14,11 +14,12 @@ import {
   useDeleteNotificationMutation,
   type Notification,
 } from "@/api/notificationsApi";
-import { toggleSound, playSound, updateUnreadCount, setSoundEnabled } from "@/features/auth/notificationSoundSlice";
+import { toggleSound, playSound, updateUnreadCount, setSoundEnabled as setReduxSoundEnabled } from "@/features/auth/notificationSoundSlice";
 import { useAppDispatch, useAppSelector } from "@/redux";
 import { useGetUserPreferencesQuery, useUpdateUserPreferenceMutation } from "@/api/userPreferenceApi";
 import { useMobileVoiceFeedback } from "@/hooks/useMobileVoiceFeedback";
 import { getPollingInterval } from "@/api/api.config";
+import { useVoiceFeedback, setVoiceEnabled } from "@/hooks/use-voice-feedback";
 
 // Icon mapping based on notification type
 const getNotificationIcon = (type: string) => {
@@ -61,6 +62,7 @@ export default function Notifications() {
   const dispatch = useAppDispatch();
   const soundEnabled = useAppSelector((state) => state.notificationSound.soundEnabled);
   const { vibrate, isMobile, notifyMobile } = useMobileVoiceFeedback();
+  const { announce: voiceAnnounce, voiceEnabled } = useVoiceFeedback();
 
   const [activeTab, setActiveTab] = useState("all");
   const { toast } = useToast();
@@ -70,10 +72,10 @@ export default function Notifications() {
   const { data: preferencesData, isLoading: preferencesLoading } = useGetUserPreferencesQuery(undefined);
   const [updatePreference] = useUpdateUserPreferenceMutation();
 
-  // Sync Redux state with backend preferences on load (useEffect to avoid render-phase updates)
+  // Sync Redux state with backend preferences on load
   useEffect(() => {
     if (preferencesData?.data?.soundNotifications !== undefined) {
-      dispatch(setSoundEnabled(preferencesData.data.soundNotifications));
+      dispatch(setReduxSoundEnabled(preferencesData.data.soundNotifications));
     }
   }, [preferencesData, dispatch]);
 
@@ -119,7 +121,6 @@ export default function Notifications() {
       ]
     : [];
 
-  // ✅ UPDATED: Use centralized polling configuration
   const { data: notificationsData, isLoading } = useGetNotificationsQuery(
     {
       read: activeTab === "unread" ? false : undefined,
@@ -131,7 +132,6 @@ export default function Notifications() {
     }
   );
 
-  // ✅ UPDATED: Use centralized polling configuration
   const { data: unreadCountData } = useGetUnreadCountQuery(undefined, {
     pollingInterval: getPollingInterval('UNREAD_COUNT'),
     refetchOnFocus: true,
@@ -142,11 +142,10 @@ export default function Notifications() {
   const [markAllAsRead] = useMarkAllAsReadMutation();
   const [deleteNotification] = useDeleteNotificationMutation();
   
-  // ✅ FIXED: Proper optional chaining
   const notifications = notificationsData?.notifications || [];
   const unreadCount = unreadCountData?.unreadCount || 0;
 
-  // Update unread count in Redux (moved to useEffect)
+  // Update unread count in Redux
   useEffect(() => {
     dispatch(updateUnreadCount(unreadCount));
   }, [unreadCount, dispatch]);
@@ -157,16 +156,27 @@ export default function Notifications() {
       const message = unreadCount > 0 
         ? `Notifications page. You have ${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}.`
         : "Notifications page. No unread notifications.";
-      notifyMobile(message, { withSound: false, withHaptic: false });
+      
+      if (isMobile) {
+        notifyMobile(message, { withSound: false, withHaptic: false });
+      } else {
+        voiceAnnounce(message);
+      }
       hasAnnouncedPage.current = true;
     }
-  }, [isLoading, unreadCount, notifyMobile]);
+  }, [isLoading, unreadCount, notifyMobile, voiceAnnounce, isMobile]);
 
   const handleMarkAsRead = async (id: string) => {
     if (isMobile) vibrate('tap');
     try {
       await markAsRead(id).unwrap();
-      await notifyMobile("Marked as read", { withHaptic: true, hapticPattern: 'select' });
+      
+      if (isMobile) {
+        await notifyMobile("Marked as read", { withHaptic: true, hapticPattern: 'select' });
+      } else {
+        voiceAnnounce("Marked as read");
+      }
+      
       toast({
         title: "Marked as read",
         description: "Notification has been marked as read",
@@ -185,11 +195,17 @@ export default function Notifications() {
     if (isMobile) vibrate('tap');
     try {
       await markAllAsRead().unwrap();
-      await notifyMobile("All notifications marked as read", { 
-        withSound: true, 
-        withHaptic: true,
-        hapticPattern: 'success'
-      });
+      
+      if (isMobile) {
+        await notifyMobile("All notifications marked as read", { 
+          withSound: true, 
+          withHaptic: true,
+          hapticPattern: 'success'
+        });
+      } else {
+        voiceAnnounce("All notifications marked as read");
+      }
+      
       toast({
         title: "All marked as read",
         description: "All notifications have been marked as read",
@@ -208,11 +224,17 @@ export default function Notifications() {
     if (isMobile) vibrate('heavy');
     try {
       await deleteNotification(id).unwrap();
-      await notifyMobile("Notification deleted", { 
-        withSound: true, 
-        withHaptic: true,
-        hapticPattern: 'success'
-      });
+      
+      if (isMobile) {
+        await notifyMobile("Notification deleted", { 
+          withSound: true, 
+          withHaptic: true,
+          hapticPattern: 'success'
+        });
+      } else {
+        voiceAnnounce("Notification deleted");
+      }
+      
       toast({
         title: "Notification deleted",
         description: "The notification has been successfully deleted",
@@ -227,7 +249,6 @@ export default function Notifications() {
     }
   };
 
-  // ✅ FIXED: Proper typing for preference updates
   const toggleSetting = async (id: string) => {
     if (isMobile) vibrate('select');
     
@@ -239,10 +260,13 @@ export default function Notifications() {
           key: id as PreferenceKey, 
           value: newValue 
         });
-        await notifyMobile(
-          newValue ? "Sound notifications enabled" : "Sound notifications disabled",
-          { withHaptic: true, hapticPattern: 'toggleOn' }
-        );
+        
+        const message = newValue ? "Sound notifications enabled" : "Sound notifications disabled";
+        if (isMobile) {
+          await notifyMobile(message, { withHaptic: true, hapticPattern: 'toggleOn' });
+        } else {
+          voiceAnnounce(message);
+        }
       } catch (error) {
         console.error("Failed to update sound preference:", error);
         dispatch(toggleSound()); // Revert on error
@@ -255,10 +279,13 @@ export default function Notifications() {
             key: id as PreferenceKey,
             value: !currentSetting.enabled,
           });
-          await notifyMobile(
-            `${currentSetting.label} ${!currentSetting.enabled ? 'enabled' : 'disabled'}`,
-            { withHaptic: true, hapticPattern: 'select' }
-          );
+          
+          const message = `${currentSetting.label} ${!currentSetting.enabled ? 'enabled' : 'disabled'}`;
+          if (isMobile) {
+            await notifyMobile(message, { withHaptic: true, hapticPattern: 'select' });
+          } else {
+            voiceAnnounce(message);
+          }
         } catch (error) {
           console.error("Failed to update preference:", error);
         }
@@ -269,6 +296,15 @@ export default function Notifications() {
   const handleTestSound = () => {
     if (isMobile) vibrate('tap');
     dispatch(playSound());
+    
+    if (voiceEnabled) {
+      voiceAnnounce("Playing test sound");
+    }
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (isMobile) vibrate('tap');
   };
 
   const getNotificationStyle = (type: string): string => {
@@ -405,9 +441,9 @@ export default function Notifications() {
             )}
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
             <TabsList className="glass">
-              <TabsTrigger value="all" className="gap-2" onClick={() => isMobile && vibrate('tap')}>
+              <TabsTrigger value="all" className="gap-2">
                 <Bell className="h-4 w-4" />
                 All
                 {unreadCount > 0 && (
@@ -416,11 +452,11 @@ export default function Notifications() {
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="unread" className="gap-2" onClick={() => isMobile && vibrate('tap')}>
+              <TabsTrigger value="unread" className="gap-2">
                 <BellOff className="h-4 w-4" />
                 Unread
               </TabsTrigger>
-              <TabsTrigger value="settings" className="gap-2" onClick={() => isMobile && vibrate('tap')}>
+              <TabsTrigger value="settings" className="gap-2">
                 <Settings className="h-4 w-4" />
                 Settings
               </TabsTrigger>
