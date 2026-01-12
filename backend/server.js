@@ -29,6 +29,7 @@ if (NODE_ENV === "production") {
 }
 
 const allowedOrigins = [
+  FRONTEND_URL,
   "https://subscription-tracker-lovat.vercel.app",
   "http://localhost:5173",
   FRONTEND_URL,
