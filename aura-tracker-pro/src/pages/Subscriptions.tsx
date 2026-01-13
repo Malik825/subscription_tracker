@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Filter, Grid, List, MoreHorizontal, Edit, Trash2, ExternalLink, Calendar as CalendarIcon, Loader2, Download, Info, Settings2 } from "lucide-react";
+import { Plus, Search, Filter, Grid, List, MoreHorizontal, Edit, Trash2, ExternalLink, Calendar as CalendarIcon, Loader2, Download, Info, Settings2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -80,6 +90,8 @@ export default function Subscriptions() {
   
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [subscriptionToDelete, setSubscriptionToDelete] = useState<Subscription | null>(null);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -188,17 +200,23 @@ export default function Subscriptions() {
     setIsAddDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    const sub = allSubscriptions.find(s => s._id === id);
-    if (confirm("Are you sure you want to delete this subscription?")) {
-      try {
-        await deleteSubscription(id).unwrap();
-        announce(`${sub?.name || "Subscription"} deleted successfully.`);
-        toast({ title: "Success", description: "Subscription deleted successfully" });
-      } catch (err) {
-        announce("Failed to delete subscription.");
-        toast({ title: "Error", description: "Failed to delete subscription", variant: "destructive" });
-      }
+  const handleDeleteClick = (sub: Subscription) => {
+    setSubscriptionToDelete(sub);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!subscriptionToDelete) return;
+    
+    try {
+      await deleteSubscription(subscriptionToDelete._id).unwrap();
+      announce(`${subscriptionToDelete.name} deleted successfully.`);
+      toast({ title: "Success", description: "Subscription deleted successfully" });
+      setIsDeleteDialogOpen(false);
+      setSubscriptionToDelete(null);
+    } catch (err) {
+      announce("Failed to delete subscription.");
+      toast({ title: "Error", description: "Failed to delete subscription", variant: "destructive" });
     }
   };
 
@@ -310,7 +328,7 @@ export default function Subscriptions() {
               </div>
             </div>
 
-            {/* Dialog */}
+            {/* Add/Edit Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
               setIsAddDialogOpen(open);
               if (!open) {
@@ -520,6 +538,39 @@ export default function Subscriptions() {
                 </Form>
               </DialogContent>
             </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    Delete Subscription
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete <span className="font-semibold text-foreground">{subscriptionToDelete?.name}</span>? 
+                    This action cannot be undone and will remove all associated data.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteConfirm}
+                    disabled={isDeleting}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
 
           {/* Stats Bar */}
@@ -618,7 +669,7 @@ export default function Subscriptions() {
                         }}>
                           <ExternalLink className="h-4 w-4 mr-2" /> Visit Site
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(sub._id)}>
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(sub)}>
                           <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -631,7 +682,7 @@ export default function Subscriptions() {
             <SubscriptionTable
               subscriptions={filteredSubscriptions}
               onEdit={handleEdit}
-              onDelete={handleDelete}
+              onDelete={handleDeleteClick}
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onSelectAll={handleSelectAll}
