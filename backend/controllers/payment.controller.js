@@ -23,14 +23,19 @@ if (!STRIPE_SECRET_KEY) {
  */
 export const createStripeSession = async (req, res, next) => {
   try {
+    console.log("🔵 [STRIPE] Creating checkout session...");
+
     if (!stripe) {
+      console.error("❌ [STRIPE] Stripe not configured");
       return res.status(500).json({
         success: false,
         message:
           "Stripe is not configured. Please add STRIPE_SECRET_KEY to your environment variables.",
       });
     }
+
     const { _id, email } = req.user;
+    console.log("🔵 [STRIPE] User:", { userId: _id.toString(), email });
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -49,6 +54,12 @@ export const createStripeSession = async (req, res, next) => {
       },
     });
 
+    console.log("✅ [STRIPE] Checkout session created:", {
+      sessionId: session.id,
+      url: session.url,
+      userId: _id.toString(),
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -56,6 +67,10 @@ export const createStripeSession = async (req, res, next) => {
       },
     });
   } catch (error) {
+    console.error(
+      "❌ [STRIPE] Error creating checkout session:",
+      error.message
+    );
     next(error);
   }
 };
@@ -63,113 +78,104 @@ export const createStripeSession = async (req, res, next) => {
 /**
  * STRIPE: Handle Webhook
  */
-/**
- * STRIPE: Handle Webhook
- */
 export const handleStripeWebhook = async (req, res, next) => {
+  console.log("🟣 [STRIPE WEBHOOK] Received webhook");
+
   if (!stripe) {
+    console.error("❌ [STRIPE WEBHOOK] Stripe not configured");
     return res.status(500).send("Stripe is not configured.");
   }
+
   let event;
 
   try {
     const sig = req.headers["stripe-signature"];
-    // Use req.body (which is now the raw buffer) instead of req.rawBody
+    console.log("🟣 [STRIPE WEBHOOK] Signature present:", !!sig);
+
     event = stripe.webhooks.constructEvent(
       req.body,
       sig,
       STRIPE_WEBHOOK_SECRET
     );
+
+    console.log(
+      "✅ [STRIPE WEBHOOK] Signature verified. Event type:",
+      event.type
+    );
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
+    console.error(
+      "❌ [STRIPE WEBHOOK] Signature verification failed:",
+      err.message
+    );
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   try {
+    console.log("🟣 [STRIPE WEBHOOK] Processing event:", event.type);
+
     switch (event.type) {
       case "checkout.session.completed":
         const session = event.data.object;
         const userId = session.metadata.userId;
-        await User.findByIdAndUpdate(userId, { plan: "pro" });
-        console.log(`✅ User ${userId} upgraded to Pro via Stripe`);
+
+        console.log("🟣 [STRIPE WEBHOOK] Checkout completed:", {
+          sessionId: session.id,
+          userId,
+          customerEmail: session.customer_email,
+          paymentStatus: session.payment_status,
+        });
+
+        const updatedUser = await User.findByIdAndUpdate(
+          userId,
+          { plan: "pro" },
+          { new: true }
+        );
+
+        if (updatedUser) {
+          console.log("✅ [STRIPE WEBHOOK] User upgraded to Pro:", {
+            userId,
+            email: updatedUser.email,
+            plan: updatedUser.plan,
+          });
+        } else {
+          console.error("❌ [STRIPE WEBHOOK] User not found:", userId);
+        }
         break;
 
       case "customer.subscription.deleted":
         const deletedSubscription = event.data.object;
-        console.log(`⚠️  Subscription deleted:`, deletedSubscription.id);
+        console.log("⚠️ [STRIPE WEBHOOK] Subscription deleted:", {
+          subscriptionId: deletedSubscription.id,
+          customerId: deletedSubscription.customer,
+        });
         break;
 
       case "customer.subscription.updated":
         const updatedSubscription = event.data.object;
+        console.log("⚠️ [STRIPE WEBHOOK] Subscription updated:", {
+          subscriptionId: updatedSubscription.id,
+          status: updatedSubscription.status,
+        });
+
         if (
           updatedSubscription.status === "canceled" ||
           updatedSubscription.status === "unpaid"
         ) {
           console.log(
-            `⚠️  Subscription status changed:`,
+            "⚠️ [STRIPE WEBHOOK] Subscription status needs attention:",
             updatedSubscription.status
           );
         }
         break;
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log("🟣 [STRIPE WEBHOOK] Unhandled event type:", event.type);
     }
 
+    console.log("✅ [STRIPE WEBHOOK] Event processed successfully");
     res.json({ received: true });
   } catch (error) {
-    console.error("Webhook processing error:", error);
-    next(error);
-  }
-};
-
-/**
- * PAYSTACK: Handle Webhook
- */
-export const handlePaystackWebhook = async (req, res, next) => {
-  try {
-    const crypto = await import("crypto");
-    const hash = crypto
-      .createHmac("sha512", PAYSTACK_SECRET_KEY)
-      .update(req.body) // Use req.body (which is now the raw buffer)
-      .digest("hex");
-
-    if (hash !== req.headers["x-paystack-signature"]) {
-      console.error("Invalid Paystack webhook signature");
-      return res
-        .status(401)
-        .json({ success: false, message: "Invalid signature" });
-    }
-
-    // Parse the JSON manually since we received raw buffer
-    const payload = JSON.parse(req.body.toString());
-    const { event, data } = payload;
-
-    switch (event) {
-      case "subscription.create":
-      case "charge.success":
-        const userId = data.metadata?.userId;
-        if (userId) {
-          await User.findByIdAndUpdate(userId, { plan: "pro" });
-          console.log(`✅ User ${userId} upgraded to Pro via Paystack`);
-        }
-        break;
-
-      case "subscription.disable":
-        const cancelledUserId = data.metadata?.userId;
-        if (cancelledUserId) {
-          await User.findByIdAndUpdate(cancelledUserId, { plan: "free" });
-          console.log(`⚠️  User ${cancelledUserId} downgraded to Free`);
-        }
-        break;
-
-      default:
-        console.log(`Unhandled Paystack event: ${event}`);
-    }
-
-    res.status(200).json({ success: true });
-  } catch (error) {
-    console.error("Paystack webhook processing error:", error);
+    console.error("❌ [STRIPE WEBHOOK] Processing error:", error);
     next(error);
   }
 };
@@ -179,7 +185,10 @@ export const handlePaystackWebhook = async (req, res, next) => {
  */
 export const initializePaystackTransaction = async (req, res, next) => {
   try {
+    console.log("🟢 [PAYSTACK] Initializing transaction...");
+
     const { _id, email } = req.user;
+    console.log("🟢 [PAYSTACK] User:", { userId: _id.toString(), email });
 
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
@@ -200,6 +209,12 @@ export const initializePaystackTransaction = async (req, res, next) => {
       }
     );
 
+    console.log("✅ [PAYSTACK] Transaction initialized:", {
+      reference: response.data.data.reference,
+      authUrl: response.data.data.authorization_url,
+      userId: _id.toString(),
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -209,7 +224,7 @@ export const initializePaystackTransaction = async (req, res, next) => {
     });
   } catch (error) {
     console.error(
-      "Paystack initialization error:",
+      "❌ [PAYSTACK] Initialization error:",
       error.response?.data || error.message
     );
     if (error.response) {
@@ -219,6 +234,112 @@ export const initializePaystackTransaction = async (req, res, next) => {
           error.response.data.message || "Paystack initialization failed",
       });
     }
+    next(error);
+  }
+};
+
+/**
+ * PAYSTACK: Handle Webhook
+ */
+export const handlePaystackWebhook = async (req, res, next) => {
+  try {
+    console.log("🟢 [PAYSTACK WEBHOOK] Received webhook");
+
+    const crypto = await import("crypto");
+    const hash = crypto
+      .createHmac("sha512", PAYSTACK_SECRET_KEY)
+      .update(req.body)
+      .digest("hex");
+
+    const paystackSignature = req.headers["x-paystack-signature"];
+    console.log(
+      "🟢 [PAYSTACK WEBHOOK] Signature present:",
+      !!paystackSignature
+    );
+
+    if (hash !== paystackSignature) {
+      console.error("❌ [PAYSTACK WEBHOOK] Invalid signature");
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid signature" });
+    }
+
+    console.log("✅ [PAYSTACK WEBHOOK] Signature verified");
+
+    // Parse the JSON manually since we received raw buffer
+    const payload = JSON.parse(req.body.toString());
+    const { event, data } = payload;
+
+    console.log("🟢 [PAYSTACK WEBHOOK] Event type:", event);
+    console.log("🟢 [PAYSTACK WEBHOOK] Event data:", {
+      reference: data.reference,
+      amount: data.amount,
+      status: data.status,
+      userId: data.metadata?.userId,
+    });
+
+    switch (event) {
+      case "subscription.create":
+      case "charge.success":
+        const userId = data.metadata?.userId;
+        console.log(
+          "🟢 [PAYSTACK WEBHOOK] Processing payment success for user:",
+          userId
+        );
+
+        if (userId) {
+          const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { plan: "pro" },
+            { new: true }
+          );
+
+          if (updatedUser) {
+            console.log("✅ [PAYSTACK WEBHOOK] User upgraded to Pro:", {
+              userId,
+              email: updatedUser.email,
+              plan: updatedUser.plan,
+            });
+          } else {
+            console.error("❌ [PAYSTACK WEBHOOK] User not found:", userId);
+          }
+        } else {
+          console.error("❌ [PAYSTACK WEBHOOK] No userId in metadata");
+        }
+        break;
+
+      case "subscription.disable":
+        const cancelledUserId = data.metadata?.userId;
+        console.log(
+          "⚠️ [PAYSTACK WEBHOOK] Processing subscription cancellation for user:",
+          cancelledUserId
+        );
+
+        if (cancelledUserId) {
+          const downgradedUser = await User.findByIdAndUpdate(
+            cancelledUserId,
+            { plan: "free" },
+            { new: true }
+          );
+
+          if (downgradedUser) {
+            console.log("✅ [PAYSTACK WEBHOOK] User downgraded to Free:", {
+              userId: cancelledUserId,
+              email: downgradedUser.email,
+              plan: downgradedUser.plan,
+            });
+          }
+        }
+        break;
+
+      default:
+        console.log("🟢 [PAYSTACK WEBHOOK] Unhandled event type:", event);
+    }
+
+    console.log("✅ [PAYSTACK WEBHOOK] Event processed successfully");
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("❌ [PAYSTACK WEBHOOK] Processing error:", error);
     next(error);
   }
 };
