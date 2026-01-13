@@ -290,7 +290,7 @@ export default function FamilySharing() {
           {!isPro ? (
             <Card className="relative overflow-hidden">
               {/* Blurred Preview */}
-              <div className="opacity-30 blur-sm pointer-events-none p-6">
+              <div className="opacity-30 blur-sm pointer-events-none h-screen">
                 <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className="glass rounded-2xl p-6 animate-fade-in">
@@ -720,7 +720,7 @@ export default function FamilySharing() {
           )}
         </div>
       </div>
-      <div className="py-24">
+      <div className="">
         <UpgradeModal isOpen={showUpgradeModal} onClose={closeUpgradeModal} />
       </div>
     </div>
