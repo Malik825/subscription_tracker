@@ -73,7 +73,7 @@ export function Sidebar({ collapsed, onUpgradeClick }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col transition-all duration-500 ease-out",
+        "fixed left-0 top-0 z-100 flex h-screen flex-col transition-all duration-500 ease-out",
         "bg-sidebar-background border-r border-sidebar-border",
         "shadow-2xl",
         collapsed ? "w-20" : "w-64"

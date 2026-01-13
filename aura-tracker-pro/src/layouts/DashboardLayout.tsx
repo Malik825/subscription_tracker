@@ -171,7 +171,7 @@ export default function DashboardLayout() {
       {/* Main Content Area */}
       <main
         className={cn(
-          "flex-1 w-full min-h-screen transition-all duration-300 relative z-50",
+          "flex-1 w-full min-h-screen transition-all duration-300",
           "ml-0",
           "md:ml-20",
           !collapsed && "lg:ml-64",
