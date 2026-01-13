@@ -35,9 +35,7 @@ if (NODE_ENV === "production") {
   console.log("✓ Trust proxy enabled for production");
 }
 
-const allowedOrigins = [
-  FRONTEND_URL,
-].filter(Boolean);
+const allowedOrigins = [FRONTEND_URL].filter(Boolean);
 
 app.use(
   cors({
@@ -54,6 +52,24 @@ app.use(
   })
 );
 
+// ============================================
+// CRITICAL: Webhook routes MUST come BEFORE express.json()
+// They need raw body for signature verification
+// ============================================
+app.use(
+  "/api/v1/payments/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  webhookRateLimiter,
+  paymentRouter
+);
+app.use(
+  "/api/v1/payments/paystack/webhook",
+  express.raw({ type: "application/json" }),
+  webhookRateLimiter,
+  paymentRouter
+);
+
+// Now apply JSON parsing for all other routes
 app.use(
   express.json({
     verify: (req, res, buf) => {
@@ -79,6 +95,7 @@ app.use("/api/v1/subscriptions", authenticatedRateLimiter, subscriptionRouter);
 
 app.use("/api/v1/workflow", authenticatedRateLimiter, workflowRouter);
 
+// Regular payment routes (non-webhook)
 app.use("/api/v1/payments", webhookRateLimiter, paymentRouter);
 
 app.use("/api/v1/ai", aiRateLimiter, aiRoutes);
